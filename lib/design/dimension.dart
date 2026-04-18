@@ -1,0 +1,1 @@
+const double fontSize30 = 30;
