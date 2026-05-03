@@ -1,12 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
-import 'package:termopaneli_app/routes/app_router.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
-import 'package:termopaneli_app/design/app_text_styles.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
+import 'package:termopaneli_app/routes/app_router.dart';
+import 'package:termopaneli_app/services/catalog_api_service.dart';
 
-class CatalogScreen extends StatelessWidget {
+class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
+
+  @override
+  State<CatalogScreen> createState() => _CatalogScreenState();
+}
+
+class _CatalogScreenState extends State<CatalogScreen> {
+  late final Future<List<CatalogItem>> _catalogFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _catalogFuture = CatalogApiService.fetchCatalog();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,15 +97,39 @@ class CatalogScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 18,
-                  childAspectRatio: 0.82,
-                  children: const [
-                    _CatalogCard(),
-                    _CatalogCard(),
-                  ],
+                child: FutureBuilder<List<CatalogItem>>(
+                  future: _catalogFuture,
+                  builder: (BuildContext context, AsyncSnapshot<List<CatalogItem>> snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Не удалось загрузить каталог',
+                          style: AppTextTheme.body32.copyWith(color: AppColors.headingText),
+                        ),
+                      );
+                    }
+                    final List<CatalogItem> items = snapshot.data ?? const <CatalogItem>[];
+                    if (items.isEmpty) {
+                      return const Center(
+                        child: Text('Каталог пуст', style: AppTextTheme.body32),
+                      );
+                    }
+                    return GridView.builder(
+                      itemCount: items.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 18,
+                        childAspectRatio: 0.82,
+                      ),
+                      itemBuilder: (BuildContext context, int index) {
+                        return _CatalogCard(item: items[index]);
+                      },
+                    );
+                  },
                 ),
               ),
             ],
@@ -140,12 +177,16 @@ class _TopActionButton extends StatelessWidget {
 }
 
 class _CatalogCard extends StatelessWidget {
-  const _CatalogCard();
+  const _CatalogCard({
+    required this.item,
+  });
+
+  final CatalogItem item;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => AppRouter.pushProductDetails(context),
+      onTap: () => AppRouter.pushProductDetails(context, item: item),
       borderRadius: const BorderRadius.all(Radius.circular(8)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,23 +199,52 @@ class _CatalogCard extends StatelessWidget {
                 borderRadius: const BorderRadius.all(Radius.circular(8)),
                 border: Border.all(color: const Color(0xFFD0D0D0)),
               ),
-              child: const Center(
-                child: Icon(
-                  Icons.view_stream_rounded,
-                  size: 96,
-                  color: Color(0xFF8D8D8D),
-                ),
-              ),
+              child: item.imageUrl == null
+                  ? const Center(
+                      child: Icon(
+                        Icons.view_stream_rounded,
+                        size: 96,
+                        color: Color(0xFF8D8D8D),
+                      ),
+                    )
+                  : ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(8)),
+                      child: Image.network(
+                        item.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Center(
+                          child: Icon(
+                            Icons.broken_image_outlined,
+                            size: 64,
+                            color: Color(0xFF8D8D8D),
+                          ),
+                        ),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Термопанель',
-            style: TextStyle(
+          Text(
+            item.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
               color: AppColors.headingText,
               fontSize: AppTextSizes.s36,
             ),
           ),
+          if (item.subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              item.subtitle!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF5D5D5D),
+                fontSize: AppTextSizes.s30,
+              ),
+            ),
+          ],
         ],
       ),
     );

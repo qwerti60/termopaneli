@@ -3,9 +3,15 @@ import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_styles.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
+import 'package:termopaneli_app/services/catalog_api_service.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
-  const ProductDetailsScreen({super.key});
+  const ProductDetailsScreen({
+    super.key,
+    this.item,
+  });
+
+  final CatalogItem? item;
 
   @override
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
@@ -31,18 +37,34 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   borderRadius: const BorderRadius.all(Radius.circular(8)),
                   border: Border.all(color: const Color(0xFFD1D1D1)),
                 ),
-                child: const Center(
-                  child: Icon(
-                    Icons.view_stream_rounded,
-                    size: 200,
-                    color: Color(0xFF8D8D8D),
-                  ),
-                ),
+                child: widget.item?.imageUrl == null
+                    ? const Center(
+                        child: Icon(
+                          Icons.view_stream_rounded,
+                          size: 200,
+                          color: Color(0xFF8D8D8D),
+                        ),
+                      )
+                    : ClipRRect(
+                        borderRadius: const BorderRadius.all(Radius.circular(8)),
+                        child: Image.network(
+                          widget.item!.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Center(
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              size: 120,
+                              color: Color(0xFF8D8D8D),
+                            ),
+                          ),
+                        ),
+                      ),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Фасадная термопанель с клинкерной плиткой\nКерамин 40 мм',
+                  widget.item?.title ??
+                      'Фасадная термопанель с клинкерной плиткой\nКерамин 40 мм',
                   style: AppTextTheme.sectionTitle.copyWith(
                     fontSize: AppTextSizes.s40,
                     fontWeight: AppTextWeights.medium,
@@ -63,6 +85,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                 ),
               ),
+              if (widget.item?.subtitle != null && widget.item!.subtitle!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    widget.item!.subtitle!,
+                    style: const TextStyle(
+                      color: Color(0xFF5D5D5D),
+                      fontSize: AppTextSizes.s30,
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(

@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:termopaneli_app/auth/pending_registration.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
-import 'package:termopaneli_app/routes/app_router.dart';
-import 'package:termopaneli_app/design/app_text_sizes.dart';
-import 'package:termopaneli_app/design/app_text_styles.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
+import 'package:termopaneli_app/routes/routes.dart';
+import 'package:termopaneli_app/services/auth_api_service.dart';
+import 'package:termopaneli_app/services/session_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PersonalDataConfirmScreen extends StatefulWidget {
-  const PersonalDataConfirmScreen({super.key});
+  const PersonalDataConfirmScreen({
+    super.key,
+    required this.pending,
+  });
+
+  final PendingRegistration pending;
 
   @override
   State<PersonalDataConfirmScreen> createState() =>
@@ -14,18 +21,54 @@ class PersonalDataConfirmScreen extends StatefulWidget {
 }
 
 class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _middleNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
+  static final Uri _telegramChannelUri = Uri.parse('https://t.me/facade_panel');
+  bool _isSaving = false;
 
-  @override
-  void dispose() {
-    _lastNameController.dispose();
-    _firstNameController.dispose();
-    _middleNameController.dispose();
-    _emailController.dispose();
-    super.dispose();
+  Future<bool> _openTelegramChannel() {
+    return launchUrl(
+      _telegramChannelUri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  Future<bool> _showTelegramSubscribeDialog() async {
+    bool confirmed = false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Подписка на канал'),
+          content: const Text(
+            'Для завершения регистрации подпишитесь на Telegram-канал facade_panel.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final bool opened = await _openTelegramChannel();
+                if (!mounted) {
+                  return;
+                }
+                if (!opened) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Не удалось открыть Telegram-канал')),
+                  );
+                }
+              },
+              child: const Text('Перейти в канал'),
+            ),
+            TextButton(
+              onPressed: () {
+                confirmed = true;
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Я подписался'),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed;
   }
 
   Future<void> _showContinueDialog() async {
@@ -41,9 +84,9 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
               child: const Text('Отмена'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(dialogContext).pop();
-                AppRouter.pushProfile(context);
+                await _completeRegistration();
               },
               child: const Text('Далее'),
             ),
@@ -51,6 +94,48 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
         );
       },
     );
+  }
+
+  Future<void> _completeRegistration() async {
+    if (_isSaving) {
+      return;
+    }
+    final pending = widget.pending;
+    if (pending.phone.isEmpty || pending.smsCode.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.catalog, (_) => false);
+      return;
+    }
+    setState(() => _isSaving = true);
+    final RegisterResult res = await AuthApiService.registerNewUser(
+      phone: pending.phone,
+      code: pending.smsCode,
+      lastName: pending.lastName,
+      firstName: pending.firstName,
+      middleName: pending.middleName,
+      email: pending.email,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _isSaving = false);
+    if (!res.ok || res.token == null || res.token!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res.errorMessage ?? 'Не удалось завершить регистрацию')),
+      );
+      return;
+    }
+    await SessionService.saveToken(res.token!);
+    final bool subscribed = await _showTelegramSubscribeDialog();
+    if (!subscribed) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.catalog, (_) => false);
   }
 
   @override
@@ -65,34 +150,38 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                '+7 (999) 888 77-66',
+                'Проверьте данные',
                 textAlign: TextAlign.center,
                 style: AppTextTheme.sectionTitleBold,
               ),
               const SizedBox(height: 24),
-              _LightInputField(
-                controller: _lastNameController,
-                hintText: 'Фамилия',
+              _ReadOnlyField(
+                label: 'Телефон',
+                value: widget.pending.phone,
               ),
               const SizedBox(height: 12),
-              _LightInputField(
-                controller: _firstNameController,
-                hintText: 'Имя',
+              _ReadOnlyField(
+                label: 'Фамилия',
+                value: widget.pending.lastName,
               ),
               const SizedBox(height: 12),
-              _LightInputField(
-                controller: _middleNameController,
-                hintText: 'Отчество',
+              _ReadOnlyField(
+                label: 'Имя',
+                value: widget.pending.firstName,
               ),
               const SizedBox(height: 12),
-              _LightInputField(
-                controller: _emailController,
-                hintText: 'Эл. почта',
-                keyboardType: TextInputType.emailAddress,
+              _ReadOnlyField(
+                label: 'Отчество',
+                value: widget.pending.middleName,
+              ),
+              const SizedBox(height: 12),
+              _ReadOnlyField(
+                label: 'Эл. почта',
+                value: widget.pending.email,
               ),
               const SizedBox(height: 34),
               TextButton(
-                onPressed: _showContinueDialog,
+                onPressed: _isSaving ? null : _showContinueDialog,
                 style: TextButton.styleFrom(
                   fixedSize: const Size(double.infinity, 33),
                   padding: EdgeInsets.zero,
@@ -103,8 +192,8 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
                     borderRadius: BorderRadius.all(Radius.circular(4)),
                   ),
                 ),
-                child: const Text(
-                  'Продолжить',
+                child: Text(
+                  _isSaving ? 'Сохранение...' : 'Продолжить',
                   textAlign: TextAlign.center,
                   style: AppTextTheme.buttonLabel,
                 ),
@@ -117,36 +206,30 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
   }
 }
 
-class _LightInputField extends StatelessWidget {
-  const _LightInputField({
-    required this.controller,
-    required this.hintText,
-    this.keyboardType,
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({
+    required this.label,
+    required this.value,
   });
 
-  final TextEditingController controller;
-  final String hintText;
-  final TextInputType? keyboardType;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: AppTextTheme.body32,
-        isCollapsed: true,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 11,
-        ),
-        filled: true,
-        fillColor: AppColors.inputBackground,
-        border: const OutlineInputBorder(
-          borderSide: BorderSide.none,
-          borderRadius: BorderRadius.all(Radius.circular(4)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: const BoxDecoration(
+        color: AppColors.inputBackground,
+        borderRadius: BorderRadius.all(Radius.circular(4)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: AppTextTheme.body32,
+          children: <InlineSpan>[
+            TextSpan(text: '$label: '),
+            TextSpan(text: value),
+          ],
         ),
       ),
     );

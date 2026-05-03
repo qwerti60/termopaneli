@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
-import 'package:termopaneli_app/routes/routes.dart';
+import 'package:termopaneli_app/screens/auth_splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Фасадные термопанели',
       debugShowCheckedModeBanner: false,
-      initialRoute: AppRoutes.login,
+      home: const AuthSplashScreen(),
       onGenerateRoute: AppRouter.onGenerateRoute,
     );
   }

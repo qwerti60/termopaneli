@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:termopaneli_app/auth/pending_registration.dart';
 import 'package:termopaneli_app/routes/routes.dart';
 import 'package:termopaneli_app/screens/catalog_screen.dart';
 import 'package:termopaneli_app/screens/estimate_screen.dart';
@@ -12,6 +13,8 @@ import 'package:termopaneli_app/screens/personal_data_screen.dart';
 import 'package:termopaneli_app/screens/profile_screen.dart';
 import 'package:termopaneli_app/screens/product_details_screen.dart';
 import 'package:termopaneli_app/screens/registration_screen.dart';
+import 'package:termopaneli_app/services/catalog_api_service.dart';
+import 'package:termopaneli_app/services/session_service.dart';
 import 'package:termopaneli_app/screens/search_screen.dart';
 import 'package:termopaneli_app/screens/subscription_screen.dart';
 import 'package:termopaneli_app/screens/window_slopes_screen.dart';
@@ -21,6 +24,7 @@ abstract final class AppRouter {
   AppRouter._();
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+    final Object? args = settings.arguments;
     switch (settings.name) {
       case AppRoutes.login:
         return MaterialPageRoute<void>(
@@ -33,13 +37,19 @@ abstract final class AppRouter {
           settings: settings,
         );
       case AppRoutes.personalData:
+        final PendingRegistration pending = args is PendingRegistration
+            ? args
+            : const PendingRegistration(phone: '', smsCode: '');
         return MaterialPageRoute<void>(
-          builder: (_) => const PersonalDataScreen(),
+          builder: (_) => PersonalDataScreen(pending: pending),
           settings: settings,
         );
       case AppRoutes.personalDataConfirm:
+        final PendingRegistration pending = args is PendingRegistration
+            ? args
+            : const PendingRegistration(phone: '', smsCode: '');
         return MaterialPageRoute<void>(
-          builder: (_) => const PersonalDataConfirmScreen(),
+          builder: (_) => PersonalDataConfirmScreen(pending: pending),
           settings: settings,
         );
       case AppRoutes.profile:
@@ -88,8 +98,9 @@ abstract final class AppRouter {
           settings: settings,
         );
       case AppRoutes.productDetails:
+        final CatalogItem? item = args is CatalogItem ? args : null;
         return MaterialPageRoute<void>(
-          builder: (_) => const ProductDetailsScreen(),
+          builder: (_) => ProductDetailsScreen(item: item),
           settings: settings,
         );
       default:
@@ -104,14 +115,26 @@ abstract final class AppRouter {
     return Navigator.pushNamed<T>(context, AppRoutes.registration);
   }
 
-  static Future<T?> pushPersonalData<T extends Object?>(BuildContext context) {
-    return Navigator.pushNamed<T>(context, AppRoutes.personalData);
+  static Future<T?> pushPersonalData<T extends Object?>(
+    BuildContext context, {
+    PendingRegistration pending = const PendingRegistration(phone: '', smsCode: ''),
+  }) {
+    return Navigator.pushNamed<T>(
+      context,
+      AppRoutes.personalData,
+      arguments: pending,
+    );
   }
 
   static Future<T?> pushPersonalDataConfirm<T extends Object?>(
-    BuildContext context,
-  ) {
-    return Navigator.pushNamed<T>(context, AppRoutes.personalDataConfirm);
+    BuildContext context, {
+    PendingRegistration pending = const PendingRegistration(phone: '', smsCode: ''),
+  }) {
+    return Navigator.pushNamed<T>(
+      context,
+      AppRoutes.personalDataConfirm,
+      arguments: pending,
+    );
   }
 
   static Future<T?> pushProfile<T extends Object?>(BuildContext context) {
@@ -146,6 +169,14 @@ abstract final class AppRouter {
     return Navigator.pushNamed<T>(context, AppRoutes.catalog);
   }
 
+  static Future<T?> pushCatalogReplacing<T extends Object?>(BuildContext context) {
+    return Navigator.pushNamedAndRemoveUntil<T>(
+      context,
+      AppRoutes.catalog,
+      (_) => false,
+    );
+  }
+
   static Future<T?> pushSearch<T extends Object?>(BuildContext context) {
     return Navigator.pushNamed<T>(context, AppRoutes.search);
   }
@@ -162,11 +193,22 @@ abstract final class AppRouter {
     return Navigator.pushNamed<T>(context, AppRoutes.windowSlopes);
   }
 
-  static Future<T?> pushProductDetails<T extends Object?>(BuildContext context) {
-    return Navigator.pushNamed<T>(context, AppRoutes.productDetails);
+  static Future<T?> pushProductDetails<T extends Object?>(
+    BuildContext context, {
+    CatalogItem? item,
+  }) {
+    return Navigator.pushNamed<T>(
+      context,
+      AppRoutes.productDetails,
+      arguments: item,
+    );
   }
 
-  static Future<T?> pushLoginReplacing<T extends Object?>(BuildContext context) {
+  static Future<T?> pushLoginReplacing<T extends Object?>(BuildContext context) async {
+    await SessionService.clearToken();
+    if (!context.mounted) {
+      return null;
+    }
     return Navigator.pushNamedAndRemoveUntil<T>(
       context,
       AppRoutes.login,

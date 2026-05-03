@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Локальный запуск с паролем SMSC (не коммитить)
+run_smsc_local.sh
+
+# Локальный PHP-конфиг с доступами к БД (не коммитить)
+backend/public/config.php
