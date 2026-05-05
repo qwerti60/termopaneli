@@ -3,13 +3,12 @@ import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_styles.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
+import 'package:termopaneli_app/routes/app_router.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
+import 'package:termopaneli_app/services/estimate_service.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
-  const ProductDetailsScreen({
-    super.key,
-    this.item,
-  });
+  const ProductDetailsScreen({super.key, this.item});
 
   final CatalogItem? item;
 
@@ -19,11 +18,25 @@ class ProductDetailsScreen extends StatefulWidget {
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   bool _showCharacteristics = true;
+  int _quantity = 1;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.pageBackground,
+      appBar: AppBar(
+        backgroundColor: AppColors.pageBackground,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: AppColors.headingText,
+          ),
+        ),
+        centerTitle: true,
+        title: const Text('Карточка товара', style: AppTextTheme.sectionTitle),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -46,17 +59,20 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         ),
                       )
                     : ClipRRect(
-                        borderRadius: const BorderRadius.all(Radius.circular(8)),
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(8),
+                        ),
                         child: Image.network(
                           widget.item!.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const Center(
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              size: 120,
-                              color: Color(0xFF8D8D8D),
-                            ),
-                          ),
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 120,
+                                  color: Color(0xFF8D8D8D),
+                                ),
+                              ),
                         ),
                       ),
               ),
@@ -71,13 +87,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 6, 16, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    '5 000 ₽ /шт',
-                    style: TextStyle(
+                    _priceText(widget.item),
+                    style: const TextStyle(
                       color: AppColors.headingText,
                       fontSize: AppTextSizes.s48,
                       fontWeight: AppTextWeights.medium,
@@ -85,7 +101,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                 ),
               ),
-              if (widget.item?.subtitle != null && widget.item!.subtitle!.isNotEmpty)
+              if (widget.item?.subtitle != null &&
+                  widget.item!.subtitle!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(
@@ -104,7 +121,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                       child: _TabButton(
                         text: 'Описание',
                         selected: !_showCharacteristics,
-                        onTap: () => setState(() => _showCharacteristics = false),
+                        onTap: () =>
+                            setState(() => _showCharacteristics = false),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -112,7 +130,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                       child: _TabButton(
                         text: 'Характеристики',
                         selected: _showCharacteristics,
-                        onTap: () => setState(() => _showCharacteristics = true),
+                        onTap: () =>
+                            setState(() => _showCharacteristics = true),
                       ),
                     ),
                   ],
@@ -120,11 +139,29 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               ),
               const SizedBox(height: 10),
               if (_showCharacteristics) ...[
-                const _SpecRow('Вид панели', 'С клинкерной плиткой'),
-                const _SpecRow('Цвет', 'Амстердам шейд рельеф'),
-                const _SpecRow('Назначение', 'Фасадная'),
-                const _SpecRow('Размер панели, м', '245x65x7'),
-                const _SpecRow('Площадь панели, м^2', '0.61'),
+                _SpecRow(
+                  'Категория',
+                  widget.item?.categoryLabel ?? 'Термопанели',
+                ),
+                _SpecRow(
+                  'Материал',
+                  _rawValue('material', fallback: 'Термопанель'),
+                ),
+                _SpecRow(
+                  'Цвет',
+                  _firstRawValue(<String>[
+                    'color_description',
+                    'color',
+                    'description',
+                    'collection_style',
+                    'collection',
+                  ], fallback: 'Не указан'),
+                ),
+                _SpecRow(
+                  'Фактура',
+                  _rawValue('texture', fallback: 'Не указана'),
+                ),
+                _SpecRow('Ед. измерения', widget.item?.unit ?? 'шт'),
               ] else ...[
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -140,12 +177,97 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                 ),
               ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Row(
+                  children: [
+                    const Text('Количество', style: AppTextTheme.body35),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: _quantity <= 1
+                          ? null
+                          : () => setState(() => _quantity--),
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    Text(
+                      '$_quantity',
+                      style: const TextStyle(
+                        color: AppColors.headingText,
+                        fontSize: AppTextSizes.s40,
+                        fontWeight: AppTextWeights.medium,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setState(() => _quantity++),
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: TextButton(
+                  onPressed: widget.item == null
+                      ? null
+                      : () {
+                          EstimateService.addItem(
+                            widget.item!,
+                            quantity: _quantity,
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Добавлено в смету')),
+                          );
+                          AppRouter.pushEstimate(context);
+                        },
+                  style: TextButton.styleFrom(
+                    fixedSize: const Size(double.infinity, 44),
+                    foregroundColor: AppColors.primaryButtonText,
+                    backgroundColor: AppColors.primaryButtonBackground,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(6)),
+                    ),
+                  ),
+                  child: const Text(
+                    'Добавить в смету',
+                    style: AppTextTheme.buttonLabel,
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _priceText(CatalogItem? item) {
+    if (item == null || item.price == null || item.price!.isEmpty) {
+      return 'Цена по запросу';
+    }
+    final String unit = item.unit == null || item.unit!.isEmpty
+        ? ''
+        : ' /${item.unit}';
+    return '${item.price} ₽$unit';
+  }
+
+  String _rawValue(String key, {required String fallback}) {
+    final dynamic value = widget.item?.raw[key];
+    if (value == null || value.toString().trim().isEmpty) {
+      return fallback;
+    }
+    return value.toString();
+  }
+
+  String _firstRawValue(List<String> keys, {required String fallback}) {
+    for (final String key in keys) {
+      final dynamic value = widget.item?.raw[key];
+      final String text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+    return fallback;
   }
 }
 
@@ -166,8 +288,9 @@ class _TabButton extends StatelessWidget {
       onPressed: onTap,
       style: TextButton.styleFrom(
         foregroundColor: selected ? AppColors.onAccent : AppColors.headingText,
-        backgroundColor:
-            selected ? AppColors.primaryButtonBackground : AppColors.pageBackground,
+        backgroundColor: selected
+            ? AppColors.primaryButtonBackground
+            : AppColors.pageBackground,
         shape: RoundedRectangleBorder(
           borderRadius: const BorderRadius.all(Radius.circular(6)),
           side: BorderSide(
@@ -204,11 +327,16 @@ class _SpecRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            right,
-            style: const TextStyle(
-              color: AppColors.headingText,
-              fontSize: AppTextSizes.s37,
+          Expanded(
+            child: Text(
+              right,
+              textAlign: TextAlign.right,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.headingText,
+                fontSize: AppTextSizes.s37,
+              ),
             ),
           ),
         ],

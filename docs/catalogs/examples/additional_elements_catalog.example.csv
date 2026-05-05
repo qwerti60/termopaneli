@@ -1,0 +1,9 @@
+sku,category,name,description,material,color,texture,thickness_mm,width_mm,length_mm,unit,price,image_path,is_active,sort_order
+CRN-PL-WHT-50,corner,Уголок пластиковый белый 50x50,Пластиковый уголок для оформления внешних углов фасада,Пластик,Белый,,,50,3000,шт,0,catalog/elements/corner_plastic_white_50.jpg,1,10
+CRN-MT-BRN-50,corner,Уголок металлический коричневый 50x50,Металлический уголок коричневого цвета,Металл,Коричневый,,,50,2000,шт,0,catalog/elements/corner_metal_brown_50.jpg,1,20
+GRT-GRAY-25,grout,Затирка серая 25 кг,Затирочная смесь для межпанельных швов,Смесь,Серый,,,,,мешок,0,catalog/elements/grout_gray_25kg.jpg,1,30
+EBB-MT-WHT-150,ebb,Отлив металлический белый 150 мм,Металлический оконный отлив белого цвета,Металл,Белый,,,150,2000,шт,0,catalog/elements/ebb_metal_white_150.jpg,1,40
+SFT-PL-WHT-PERF,soffit,Софит пластиковый белый перфорированный,Перфорированный софит для подшивки карнизных свесов,Пластик,Белый,Перфорированный,,,3000,шт,0,catalog/elements/soffit_plastic_white_perf.jpg,1,50
+PLN-START,plinth,Стартовый профиль для цоколя,Стартовый профиль для монтажа цокольной части,Металл,Оцинкованный,,,,2000,шт,0,catalog/elements/plinth_start_profile.jpg,1,60
+FST-DWL-100,fastener,Дюбель фасадный 100 мм,Крепеж для монтажа фасадных термопанелей,Металл/пластик,Стандарт,,,,100,шт,0,catalog/elements/fastener_dowel_100.jpg,1,70
+CNS-FOAM,consumable,Монтажная пена,Расходный материал для монтажных работ,Смесь,Стандарт,,,,,баллон,0,catalog/elements/consumable_foam.jpg,1,80

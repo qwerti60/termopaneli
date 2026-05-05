@@ -1,0 +1,6 @@
+sku,category,name,description,material,color,texture,thickness_mm,width_mm,length_mm,unit,price,image_path,is_active,sort_order
+SLP-PL-WHT-150,slope,Откос пластиковый белый 150 мм,Пластиковый откос для оконных и дверных проемов,Пластик,Белый,,,150,3000,шт,0,catalog/slopes/slope_plastic_white_150.jpg,1,10
+SLP-PL-WHT-200,slope,Откос пластиковый белый 200 мм,Пластиковый откос увеличенной ширины для глубоких проемов,Пластик,Белый,,,200,3000,шт,0,catalog/slopes/slope_plastic_white_200.jpg,1,20
+SLP-PL-BRN-150,slope,Откос пластиковый коричневый 150 мм,Пластиковый откос коричневого цвета,Пластик,Коричневый,,,150,3000,шт,0,catalog/slopes/slope_plastic_brown_150.jpg,1,30
+SLP-MT-WHT-150,slope,Откос металлический белый 150 мм,Металлический откос для наружного оформления проемов,Металл,Белый,,,150,2000,шт,0,catalog/slopes/slope_metal_white_150.jpg,1,40
+SLP-MT-BRN-200,slope,Откос металлический коричневый 200 мм,Металлический откос коричневого цвета для глубоких проемов,Металл,Коричневый,,,200,2000,шт,0,catalog/slopes/slope_metal_brown_200.jpg,1,50

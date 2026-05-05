@@ -19,7 +19,18 @@
    POST .../api/v1/auth/verify-phone.php     — тело JSON {"phone":"...","code":"123456"}
                                               для существующего вернет token, для нового — is_new_user=true
    POST .../api/v1/auth/register.php         — тело JSON с phone+code+ФИО+email, создает user_profiles и выдает token
-   GET  .../api/v1/catalog/list.php          — список записей из thermo_panel_catalog
+   GET  .../api/v1/catalog/list.php          — каталог панелей и материалов
+                                               параметры: category=all|panel|slope|corner|grout|ebb|soffit|plinth|fastener
+   POST .../api/v1/estimates/save.php        — сохранение сметы, Authorization: Bearer <token>
+   GET  .../api/v1/estimates/list.php        — список смет пользователя, Authorization: Bearer <token>
+
+   Для откосов и дополнительных элементов выполните:
+   sql/schema_catalog_materials.sql
+   Скрипт создаёт catalog_materials и загружает стартовые позиции с ценой 0.
+   Перед production замените цены и изображения на реальные.
+
+   Для сохранения смет выполните:
+   sql/schema_estimates.sql
 
 4) Цепочка:
    - request-sms.php сохраняет код в таблице sms_otp и шлёт SMS через smsc.ru;

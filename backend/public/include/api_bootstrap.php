@@ -107,3 +107,19 @@ function tp_bearer_token(): ?string
     }
     return null;
 }
+
+function tp_auth_user_id(): ?int
+{
+    $token = tp_bearer_token();
+    if ($token === null || $token === '') {
+        return null;
+    }
+    $pdo = tp_pdo();
+    $st = $pdo->prepare('SELECT id FROM user_profiles WHERE token = ? LIMIT 1');
+    $st->execute([$token]);
+    $row = $st->fetch();
+    if ($row === false) {
+        return null;
+    }
+    return (int) $row['id'];
+}

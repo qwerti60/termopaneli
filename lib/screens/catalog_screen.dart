@@ -13,12 +13,216 @@ class CatalogScreen extends StatefulWidget {
 }
 
 class _CatalogScreenState extends State<CatalogScreen> {
-  late final Future<List<CatalogItem>> _catalogFuture;
+  String _selectedCategory = 'all';
+  String _sortMode = 'name_asc';
+  String _selectedMaterial = 'all';
+  String _selectedColor = 'all';
+  late Future<List<CatalogItem>> _catalogFuture;
 
   @override
   void initState() {
     super.initState();
-    _catalogFuture = CatalogApiService.fetchCatalog();
+    _catalogFuture = _loadCatalog();
+  }
+
+  Future<List<CatalogItem>> _loadCatalog() {
+    return CatalogApiService.fetchCatalog(category: _selectedCategory);
+  }
+
+  void _selectCategory(String category) {
+    if (category == _selectedCategory) {
+      return;
+    }
+    setState(() {
+      _selectedCategory = category;
+      _catalogFuture = _loadCatalog();
+    });
+  }
+
+  List<CatalogItem> _visibleItems(List<CatalogItem> items) {
+    final List<CatalogItem> filtered = items.where((CatalogItem item) {
+      if (_selectedMaterial != 'all' &&
+          _fieldValue(item, <String>['material']) != _selectedMaterial) {
+        return false;
+      }
+      if (_selectedColor != 'all' &&
+          _fieldValue(item, <String>['color', 'color_description']) !=
+              _selectedColor) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    filtered.sort((CatalogItem a, CatalogItem b) {
+      switch (_sortMode) {
+        case 'price_asc':
+          return _priceOf(a).compareTo(_priceOf(b));
+        case 'price_desc':
+          return _priceOf(b).compareTo(_priceOf(a));
+        case 'category':
+          return (a.categoryLabel ?? a.category).compareTo(
+            b.categoryLabel ?? b.category,
+          );
+        case 'name_desc':
+          return b.title.compareTo(a.title);
+        case 'name_asc':
+        default:
+          return a.title.compareTo(b.title);
+      }
+    });
+    return filtered;
+  }
+
+  String _fieldValue(CatalogItem item, List<String> keys) {
+    for (final String key in keys) {
+      final dynamic value = item.raw[key];
+      final String text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+    return '';
+  }
+
+  double _priceOf(CatalogItem item) {
+    final String raw = item.price ?? '';
+    final String normalized = raw
+        .replaceAll(RegExp(r'[^0-9,.]'), '')
+        .replaceAll(',', '.');
+    return double.tryParse(normalized) ?? 0;
+  }
+
+  Future<void> _showFilterSheet(List<CatalogItem> items) async {
+    final List<String> materials = _uniqueValues(items, <String>['material']);
+    final List<String> colors = _uniqueValues(items, <String>[
+      'color',
+      'color_description',
+    ]);
+    String material = _selectedMaterial;
+    String color = _selectedColor;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Фильтр', style: AppTextTheme.sectionTitle),
+                  const SizedBox(height: 14),
+                  _DropdownFilter(
+                    label: 'Материал',
+                    value: material,
+                    values: materials,
+                    onChanged: (String value) {
+                      setSheetState(() => material = value);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _DropdownFilter(
+                    label: 'Цвет',
+                    value: color,
+                    values: colors,
+                    onChanged: (String value) {
+                      setSheetState(() => color = value);
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedMaterial = 'all';
+                              _selectedColor = 'all';
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Сбросить'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedMaterial = material;
+                              _selectedColor = color;
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Применить'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<String> _uniqueValues(List<CatalogItem> items, List<String> keys) {
+    final Set<String> values = <String>{};
+    for (final CatalogItem item in items) {
+      final String value = _fieldValue(item, keys);
+      if (value.isNotEmpty) {
+        values.add(value);
+      }
+    }
+    final List<String> sorted = values.toList()..sort();
+    return sorted;
+  }
+
+  Future<void> _showSortSheet() async {
+    final String? selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _SortTile(
+                title: 'По названию А-Я',
+                value: 'name_asc',
+                groupValue: _sortMode,
+              ),
+              _SortTile(
+                title: 'По названию Я-А',
+                value: 'name_desc',
+                groupValue: _sortMode,
+              ),
+              _SortTile(
+                title: 'Сначала дешевле',
+                value: 'price_asc',
+                groupValue: _sortMode,
+              ),
+              _SortTile(
+                title: 'Сначала дороже',
+                value: 'price_desc',
+                groupValue: _sortMode,
+              ),
+              _SortTile(
+                title: 'По категории',
+                value: 'category',
+                groupValue: _sortMode,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null && selected != _sortMode) {
+      setState(() => _sortMode = selected);
+    }
   }
 
   @override
@@ -80,61 +284,201 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _TopActionButton(
-                    icon: Icons.filter_alt_outlined,
-                    text: 'Фильтр',
-                    onTap: () => AppRouter.pushHome(context),
-                  ),
-                  _TopActionButton(
-                    icon: Icons.swap_vert,
-                    text: 'Сортировка',
-                    onTap: () => AppRouter.pushHome(context),
-                  ),
-                ],
+              FutureBuilder<List<CatalogItem>>(
+                future: _catalogFuture,
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<CatalogItem>> snapshot,
+                    ) {
+                      final List<CatalogItem> items =
+                          snapshot.data ?? const <CatalogItem>[];
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _TopActionButton(
+                            icon: Icons.filter_alt_outlined,
+                            text: _hasFilters ? 'Фильтр *' : 'Фильтр',
+                            onTap: items.isEmpty
+                                ? null
+                                : () => _showFilterSheet(items),
+                          ),
+                          _TopActionButton(
+                            icon: Icons.swap_vert,
+                            text: 'Сортировка',
+                            onTap: _showSortSheet,
+                          ),
+                        ],
+                      );
+                    },
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 42,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: CatalogApiService.categories.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
+                  itemBuilder: (BuildContext context, int index) {
+                    final CatalogCategory category =
+                        CatalogApiService.categories[index];
+                    return _CategoryChip(
+                      label: category.label,
+                      selected: category.code == _selectedCategory,
+                      onTap: () => _selectCategory(category.code),
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 14),
               Expanded(
                 child: FutureBuilder<List<CatalogItem>>(
                   future: _catalogFuture,
-                  builder: (BuildContext context, AsyncSnapshot<List<CatalogItem>> snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text(
-                          'Не удалось загрузить каталог',
-                          style: AppTextTheme.body32.copyWith(color: AppColors.headingText),
-                        ),
-                      );
-                    }
-                    final List<CatalogItem> items = snapshot.data ?? const <CatalogItem>[];
-                    if (items.isEmpty) {
-                      return const Center(
-                        child: Text('Каталог пуст', style: AppTextTheme.body32),
-                      );
-                    }
-                    return GridView.builder(
-                      itemCount: items.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 18,
-                        childAspectRatio: 0.82,
-                      ),
-                      itemBuilder: (BuildContext context, int index) {
-                        return _CatalogCard(item: items[index]);
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<List<CatalogItem>> snapshot,
+                      ) {
+                        if (snapshot.connectionState != ConnectionState.done) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Не удалось загрузить каталог',
+                              style: AppTextTheme.body32.copyWith(
+                                color: AppColors.headingText,
+                              ),
+                            ),
+                          );
+                        }
+                        final List<CatalogItem> items = _visibleItems(
+                          snapshot.data ?? const <CatalogItem>[],
+                        );
+                        if (items.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'Каталог пуст',
+                              style: AppTextTheme.body32,
+                            ),
+                          );
+                        }
+                        return GridView.builder(
+                          itemCount: items.length,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 14,
+                                crossAxisSpacing: 18,
+                                childAspectRatio: 0.82,
+                              ),
+                          itemBuilder: (BuildContext context, int index) {
+                            return _CatalogCard(item: items[index]);
+                          },
+                        );
                       },
-                    );
-                  },
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  bool get _hasFilters => _selectedMaterial != 'all' || _selectedColor != 'all';
+}
+
+class _DropdownFilter extends StatelessWidget {
+  const _DropdownFilter({
+    required this.label,
+    required this.value,
+    required this.values,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final List<String> values;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<DropdownMenuItem<String>> items = <DropdownMenuItem<String>>[
+      const DropdownMenuItem<String>(
+        value: 'all',
+        child: Text('Все', overflow: TextOverflow.ellipsis),
+      ),
+      ...values.map(
+        (String value) => DropdownMenuItem<String>(
+          value: value,
+          child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ),
+    ];
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: items,
+      onChanged: (String? value) {
+        if (value != null) {
+          onChanged(value);
+        }
+      },
+    );
+  }
+}
+
+class _SortTile extends StatelessWidget {
+  const _SortTile({
+    required this.title,
+    required this.value,
+    required this.groupValue,
+  });
+
+  final String title;
+  final String value;
+  final String groupValue;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(title),
+      trailing: value == groupValue ? const Icon(Icons.check) : null,
+      onTap: () => Navigator.pop(context, value),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      selectedColor: AppColors.primaryButtonBackground,
+      backgroundColor: const Color(0xFFEDEDED),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primaryButtonText : AppColors.headingText,
+        fontSize: AppTextSizes.s30,
+      ),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
       ),
     );
   }
@@ -149,7 +493,7 @@ class _TopActionButton extends StatelessWidget {
 
   final IconData icon;
   final String text;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -177,9 +521,7 @@ class _TopActionButton extends StatelessWidget {
 }
 
 class _CatalogCard extends StatelessWidget {
-  const _CatalogCard({
-    required this.item,
-  });
+  const _CatalogCard({required this.item});
 
   final CatalogItem item;
 
@@ -212,18 +554,31 @@ class _CatalogCard extends StatelessWidget {
                       child: Image.network(
                         item.imageUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => const Center(
-                          child: Icon(
-                            Icons.broken_image_outlined,
-                            size: 64,
-                            color: Color(0xFF8D8D8D),
-                          ),
-                        ),
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                size: 64,
+                                color: Color(0xFF8D8D8D),
+                              ),
+                            ),
                       ),
                     ),
             ),
           ),
           const SizedBox(height: 8),
+          if (item.categoryLabel != null) ...[
+            Text(
+              item.categoryLabel!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF757575),
+                fontSize: AppTextSizes.s28,
+              ),
+            ),
+            const SizedBox(height: 2),
+          ],
           Text(
             item.title,
             maxLines: 2,
@@ -245,9 +600,29 @@ class _CatalogCard extends StatelessWidget {
               ),
             ),
           ],
+          if (item.price != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              _formatPrice(item),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.headingText,
+                fontSize: AppTextSizes.s30,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  String _formatPrice(CatalogItem item) {
+    final String unit = item.unit == null || item.unit!.isEmpty
+        ? ''
+        : ' / ${item.unit}';
+    return '${item.price} ₽$unit';
   }
 }
 
@@ -266,7 +641,9 @@ class _BottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = isActive ? AppColors.headingText : const Color(0xFF757575);
+    final Color color = isActive
+        ? AppColors.headingText
+        : const Color(0xFF757575);
     return InkWell(
       onTap: onTap,
       child: Padding(
