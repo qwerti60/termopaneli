@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
-import 'package:termopaneli_app/routes/app_router.dart';
-import 'package:termopaneli_app/design/app_text_sizes.dart';
-import 'package:termopaneli_app/design/app_text_styles.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
+import 'package:termopaneli_app/routes/app_router.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -47,123 +45,128 @@ class ProfileScreen extends StatelessWidget {
               child: IntrinsicHeight(
                 child: Column(
                   children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Иван',
-                        style: AppTextTheme.profileName,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => AppRouter.pushLoginReplacing(context),
-                      icon: const Icon(
-                        Icons.notifications_none_outlined,
-                        size: 28,
-                        color: AppColors.headingText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: double.infinity,
-                color: AppColors.primaryButtonBackground,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                      child: Row(
                         children: [
-                          Text(
-                            'Версия PRO',
-                            style: AppTextTheme.proTitle,
+                          const Expanded(
+                            child: Text(
+                              'Иван',
+                              style: AppTextTheme.profileName,
+                            ),
                           ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Возможность детально рассчитать смету',
-                            style: AppTextTheme.proSubtitle,
+                          IconButton(
+                            onPressed: () =>
+                                AppRouter.pushLoginReplacing(context),
+                            icon: const Icon(
+                              Icons.notifications_none_outlined,
+                              size: 28,
+                              color: AppColors.headingText,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    TextButton(
-                      onPressed: () => AppRouter.pushSubscription(context),
-                      style: TextButton.styleFrom(
-                        backgroundColor: AppColors.pageBackground,
-                        foregroundColor: AppColors.headingText,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(4)),
-                        ),
+                    Container(
+                      width: double.infinity,
+                      color: AppColors.primaryButtonBackground,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Версия PRO',
+                                  style: AppTextTheme.proTitle,
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Возможность детально рассчитать смету',
+                                  style: AppTextTheme.proSubtitle,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          TextButton(
+                            onPressed: () =>
+                                AppRouter.pushSubscription(context),
+                            style: TextButton.styleFrom(
+                              backgroundColor: AppColors.pageBackground,
+                              foregroundColor: AppColors.headingText,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(4),
+                                ),
+                              ),
+                            ),
+                            child: const Text(
+                              'Улучшить',
+                              style: AppTextTheme.proSubtitle,
+                            ),
+                          ),
+                        ],
                       ),
-                      child: const Text(
-                        'Улучшить',
-                        style: AppTextTheme.proSubtitle,
-                      ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              _MenuItem(
-                title: 'Мои данные',
-                onTap: () => AppRouter.pushMyData(context),
-              ),
-              _MenuItem(
-                title: 'Сметы',
-                onTap: () => AppRouter.pushEstimate(context),
-              ),
-              _MenuItem(
-                title: 'Дом',
-                onTap: () => AppRouter.pushHome(context),
-              ),
-              _MenuItem(
-                title: 'Управление подпиской',
-                onTap: () => AppRouter.pushSubscription(context),
-              ),
-              _MenuItem(
-                title: 'Умный калькулятор',
-                onTap: () => AppRouter.pushLoginReplacing(context),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _SocialButton(
-                      color: const Color(0xFF7360F2),
-                      icon: Icons.forum_outlined,
-                      onTap: () => AppRouter.pushPersonalData(context),
+                    const SizedBox(height: 8),
+                    _MenuItem(
+                      title: 'Мои данные',
+                      onTap: () => AppRouter.pushMyData(context),
                     ),
-                    _SocialButton(
-                      color: const Color(0xFF2FBF55),
-                      icon: Icons.call,
-                      onTap: () => AppRouter.pushRegistration(context),
+                    _MenuItem(
+                      title: 'Сметы',
+                      onTap: () => AppRouter.pushSavedEstimates(context),
                     ),
-                    _SocialButton(
-                      color: const Color(0xFF2FAAE6),
-                      icon: Icons.send,
+                    _MenuItem(
+                      title: 'Дом',
                       onTap: () => AppRouter.pushHome(context),
                     ),
-                    _SocialButton(
-                      color: const Color(0xFF247BDE),
-                      icon: Icons.people,
-                      onTap: () => AppRouter.pushPersonalDataConfirm(context),
+                    _MenuItem(
+                      title: 'Управление подпиской',
+                      onTap: () => AppRouter.pushSubscription(context),
                     ),
-                    _SocialButton(
-                      color: const Color(0xFFFF0000),
-                      icon: Icons.play_arrow,
+                    _MenuItem(
+                      title: 'Умный калькулятор',
                       onTap: () => AppRouter.pushLoginReplacing(context),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
+                    const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _SocialButton(
+                            color: const Color(0xFF7360F2),
+                            icon: Icons.forum_outlined,
+                            onTap: () => AppRouter.pushPersonalData(context),
+                          ),
+                          _SocialButton(
+                            color: const Color(0xFF2FBF55),
+                            icon: Icons.call,
+                            onTap: () => AppRouter.pushRegistration(context),
+                          ),
+                          _SocialButton(
+                            color: const Color(0xFF2FAAE6),
+                            icon: Icons.send,
+                            onTap: () => AppRouter.pushHome(context),
+                          ),
+                          _SocialButton(
+                            color: const Color(0xFF247BDE),
+                            icon: Icons.people,
+                            onTap: () =>
+                                AppRouter.pushPersonalDataConfirm(context),
+                          ),
+                          _SocialButton(
+                            color: const Color(0xFFFF0000),
+                            icon: Icons.play_arrow,
+                            onTap: () => AppRouter.pushLoginReplacing(context),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                   ],
                 ),
               ),
@@ -189,17 +192,8 @@ class _MenuItem extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
         child: Row(
           children: [
-            Expanded(
-              child: Text(
-                title,
-                style: AppTextTheme.sectionTitle,
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right,
-              size: 34,
-              color: Color(0xFF8D8D8D),
-            ),
+            Expanded(child: Text(title, style: AppTextTheme.sectionTitle)),
+            const Icon(Icons.chevron_right, size: 34, color: Color(0xFF8D8D8D)),
           ],
         ),
       ),
@@ -251,7 +245,9 @@ class _BottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = isActive ? AppColors.headingText : const Color(0xFF757575);
+    final Color color = isActive
+        ? AppColors.headingText
+        : const Color(0xFF757575);
     return InkWell(
       onTap: onTap,
       child: Padding(

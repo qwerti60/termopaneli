@@ -13,7 +13,9 @@ import 'package:termopaneli_app/screens/personal_data_screen.dart';
 import 'package:termopaneli_app/screens/profile_screen.dart';
 import 'package:termopaneli_app/screens/product_details_screen.dart';
 import 'package:termopaneli_app/screens/registration_screen.dart';
+import 'package:termopaneli_app/screens/saved_estimates_screen.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
+import 'package:termopaneli_app/services/estimate_api_service.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 import 'package:termopaneli_app/screens/search_screen.dart';
 import 'package:termopaneli_app/screens/subscription_screen.dart';
@@ -88,8 +90,14 @@ abstract final class AppRouter {
           settings: settings,
         );
       case AppRoutes.estimate:
+        final SavedEstimate? estimate = args is SavedEstimate ? args : null;
         return MaterialPageRoute<void>(
-          builder: (_) => const EstimateScreen(),
+          builder: (_) => EstimateScreen(initialEstimate: estimate),
+          settings: settings,
+        );
+      case AppRoutes.savedEstimates:
+        return MaterialPageRoute<void>(
+          builder: (_) => const SavedEstimatesScreen(),
           settings: settings,
         );
       case AppRoutes.windowSlopes:
@@ -117,7 +125,10 @@ abstract final class AppRouter {
 
   static Future<T?> pushPersonalData<T extends Object?>(
     BuildContext context, {
-    PendingRegistration pending = const PendingRegistration(phone: '', smsCode: ''),
+    PendingRegistration pending = const PendingRegistration(
+      phone: '',
+      smsCode: '',
+    ),
   }) {
     return Navigator.pushNamed<T>(
       context,
@@ -128,7 +139,10 @@ abstract final class AppRouter {
 
   static Future<T?> pushPersonalDataConfirm<T extends Object?>(
     BuildContext context, {
-    PendingRegistration pending = const PendingRegistration(phone: '', smsCode: ''),
+    PendingRegistration pending = const PendingRegistration(
+      phone: '',
+      smsCode: '',
+    ),
   }) {
     return Navigator.pushNamed<T>(
       context,
@@ -169,7 +183,9 @@ abstract final class AppRouter {
     return Navigator.pushNamed<T>(context, AppRoutes.catalog);
   }
 
-  static Future<T?> pushCatalogReplacing<T extends Object?>(BuildContext context) {
+  static Future<T?> pushCatalogReplacing<T extends Object?>(
+    BuildContext context,
+  ) {
     return Navigator.pushNamedAndRemoveUntil<T>(
       context,
       AppRoutes.catalog,
@@ -185,8 +201,21 @@ abstract final class AppRouter {
     return Navigator.pushNamed<T>(context, AppRoutes.myData);
   }
 
-  static Future<T?> pushEstimate<T extends Object?>(BuildContext context) {
-    return Navigator.pushNamed<T>(context, AppRoutes.estimate);
+  static Future<T?> pushEstimate<T extends Object?>(
+    BuildContext context, {
+    SavedEstimate? estimate,
+  }) {
+    return Navigator.pushNamed<T>(
+      context,
+      AppRoutes.estimate,
+      arguments: estimate,
+    );
+  }
+
+  static Future<T?> pushSavedEstimates<T extends Object?>(
+    BuildContext context,
+  ) {
+    return Navigator.pushNamed<T>(context, AppRoutes.savedEstimates);
   }
 
   static Future<T?> pushWindowSlopes<T extends Object?>(BuildContext context) {
@@ -204,7 +233,9 @@ abstract final class AppRouter {
     );
   }
 
-  static Future<T?> pushLoginReplacing<T extends Object?>(BuildContext context) async {
+  static Future<T?> pushLoginReplacing<T extends Object?>(
+    BuildContext context,
+  ) async {
     await SessionService.clearToken();
     if (!context.mounted) {
       return null;

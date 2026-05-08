@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:termopaneli_app/config/api_config.dart';
+import 'package:termopaneli_app/services/catalog_api_service.dart';
 import 'package:termopaneli_app/services/estimate_service.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 
@@ -25,6 +26,10 @@ class SavedEstimate {
     required this.totalAmount,
     required this.createdAt,
     required this.itemsCount,
+    required this.items,
+    this.calculation = const <String, dynamic>{},
+    this.requestStatus,
+    this.requestComment,
   });
 
   final int id;
@@ -33,12 +38,44 @@ class SavedEstimate {
   final double totalAmount;
   final String createdAt;
   final int itemsCount;
+  final List<SavedEstimateItem> items;
+  final Map<String, dynamic> calculation;
+  final String? requestStatus;
+  final String? requestComment;
+}
+
+class SavedEstimateItem {
+  const SavedEstimateItem({
+    required this.name,
+    required this.category,
+    required this.unit,
+    required this.quantity,
+    required this.unitPrice,
+    required this.totalPrice,
+    this.sku,
+    this.description,
+    this.material,
+    this.color,
+    this.raw = const <String, dynamic>{},
+  });
+
+  final String name;
+  final String category;
+  final String unit;
+  final int quantity;
+  final double unitPrice;
+  final double totalPrice;
+  final String? sku;
+  final String? description;
+  final String? material;
+  final String? color;
+  final Map<String, dynamic> raw;
 }
 
 abstract final class EstimateApiService {
   EstimateApiService._();
 
-  static Uri _uri(String path) {
+  static Uri _uri(String path, {String? token}) {
     final String base = ApiConfig.baseUrl.trim();
     if (base.isEmpty) {
       throw StateError('API_BASE_URL');
@@ -46,12 +83,19 @@ abstract final class EstimateApiService {
     final String normalized = base.endsWith('/')
         ? base.substring(0, base.length - 1)
         : base;
-    return Uri.parse('$normalized$path');
+    final Uri uri = Uri.parse('$normalized$path');
+    if (token == null || token.isEmpty) {
+      return uri;
+    }
+    return uri.replace(
+      queryParameters: <String, String>{...uri.queryParameters, 'token': token},
+    );
   }
 
   static Future<SaveEstimateResult> saveCurrent({
     required List<EstimateLine> lines,
     String title = 'Смета',
+    Map<String, Object?>? calculation,
   }) async {
     final String? token = await SessionService.getToken();
     if (token == null || token.isEmpty) {
@@ -67,7 +111,7 @@ abstract final class EstimateApiService {
     try {
       final http.Response res = await http
           .post(
-            _uri('/api/v1/estimates/save.php'),
+            _uri('/api/v1/estimates/save.php', token: token),
             headers: <String, String>{
               'Content-Type': 'application/json',
               'Accept': 'application/json',
@@ -76,6 +120,8 @@ abstract final class EstimateApiService {
             body: jsonEncode(<String, Object?>{
               'title': title,
               'items': lines.map(_lineToJson).toList(growable: false),
+              if (calculation case final Map<String, Object?> value)
+                'calculation': value,
             }),
           )
           .timeout(const Duration(seconds: 30));
@@ -105,7 +151,7 @@ abstract final class EstimateApiService {
 
     final http.Response res = await http
         .get(
-          _uri('/api/v1/estimates/list.php'),
+          _uri('/api/v1/estimates/list.php', token: token),
           headers: <String, String>{
             'Accept': 'application/json',
             'Authorization': 'Bearer $token',
@@ -124,6 +170,56 @@ abstract final class EstimateApiService {
         .whereType<Map>()
         .map((Map row) => _savedFromJson(row.cast<String, dynamic>()))
         .toList(growable: false);
+  }
+
+  static Future<SaveEstimateResult> submitSaved(
+    int estimateId, {
+    String comment = '',
+  }) async {
+    final String? token = await SessionService.getToken();
+    if (token == null || token.isEmpty) {
+      return const SaveEstimateResult(
+        ok: false,
+        errorMessage: 'Нужно войти в аккаунт',
+      );
+    }
+    if (estimateId <= 0) {
+      return const SaveEstimateResult(
+        ok: false,
+        errorMessage: 'Некорректная смета',
+      );
+    }
+
+    try {
+      final http.Response res = await http
+          .post(
+            _uri('/api/v1/estimates/submit.php', token: token),
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(<String, Object?>{
+              'estimate_id': estimateId,
+              'comment': comment,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      final dynamic data = _decodeBody(res.body);
+      if (res.statusCode == 200 && data is Map<String, dynamic>) {
+        return SaveEstimateResult(ok: true, estimateId: estimateId);
+      }
+      return SaveEstimateResult(
+        ok: false,
+        errorMessage: _messageFrom(data) ?? 'Ошибка ${res.statusCode}',
+      );
+    } catch (e) {
+      return SaveEstimateResult(
+        ok: false,
+        errorMessage: 'Нет связи с сервером: $e',
+      );
+    }
   }
 
   static Map<String, Object?> _lineToJson(EstimateLine line) {
@@ -147,14 +243,87 @@ abstract final class EstimateApiService {
 
   static SavedEstimate _savedFromJson(Map<String, dynamic> row) {
     final List items = row['items'] is List ? row['items'] as List : const [];
+    final Map<String, dynamic> estimateRaw = _decodeRawMap(row['raw_json']);
+    final Map<String, dynamic> calculation = estimateRaw['calculation'] is Map
+        ? (estimateRaw['calculation'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final List<SavedEstimateItem> parsedItems = items
+        .whereType<Map>()
+        .map((Map item) => _savedItemFromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
     return SavedEstimate(
       id: int.tryParse('${row['id'] ?? 0}') ?? 0,
       title: '${row['title'] ?? 'Смета'}',
       status: '${row['status'] ?? ''}',
       totalAmount: double.tryParse('${row['total_amount'] ?? 0}') ?? 0,
       createdAt: '${row['created_at'] ?? ''}',
-      itemsCount: items.length,
+      itemsCount: parsedItems.length,
+      items: parsedItems,
+      calculation: calculation,
+      requestStatus: _requestFieldFromJson(row, 'status'),
+      requestComment: _requestCommentFromJson(row),
     );
+  }
+
+  static String? _requestFieldFromJson(Map<String, dynamic> row, String field) {
+    if (row['request'] case final Map request) {
+      return _optionalString(request[field]);
+    }
+    return _optionalString(row['request_$field']);
+  }
+
+  static String? _requestCommentFromJson(Map<String, dynamic> row) {
+    return _requestFieldFromJson(row, 'comment');
+  }
+
+  static SavedEstimateItem _savedItemFromJson(Map<String, dynamic> row) {
+    final Map<String, dynamic> raw = _decodeRawMap(row['raw_json']);
+    return SavedEstimateItem(
+      name: '${row['name'] ?? 'Позиция'}',
+      category: '${row['category'] ?? ''}',
+      unit: '${row['unit'] ?? 'шт'}',
+      quantity: int.tryParse('${row['quantity'] ?? 1}') ?? 1,
+      unitPrice: double.tryParse('${row['unit_price'] ?? 0}') ?? 0,
+      totalPrice: double.tryParse('${row['total_price'] ?? 0}') ?? 0,
+      sku: _optionalString(row['sku']),
+      description: _optionalString(row['description']),
+      material: _optionalString(row['material']),
+      color: _optionalString(row['color']),
+      raw: raw,
+    );
+  }
+
+  static List<EstimateLine> linesFromSaved(SavedEstimate estimate) {
+    return estimate.items
+        .map((SavedEstimateItem item) {
+          final CatalogItem catalogItem = CatalogItem(
+            title: item.name,
+            category: item.category.isEmpty ? 'panel' : item.category,
+            subtitle: item.description,
+            categoryLabel: item.category == 'work' ? 'Работы' : null,
+            price: item.unitPrice.toString(),
+            unit: item.unit,
+            raw: item.raw.isEmpty
+                ? <String, dynamic>{
+                    'sku': item.sku,
+                    'category': item.category,
+                    'name': item.name,
+                    'description': item.description,
+                    'material': item.material,
+                    'color': item.color,
+                    'unit': item.unit,
+                    'price': item.unitPrice,
+                  }
+                : item.raw,
+          );
+          return EstimateLine(item: catalogItem, quantity: item.quantity);
+        })
+        .toList(growable: false);
+  }
+
+  static String? _optionalString(dynamic value) {
+    final String text = '${value ?? ''}'.trim();
+    return text.isEmpty ? null : text;
   }
 
   static dynamic _decodeBody(String body) {
@@ -163,6 +332,23 @@ abstract final class EstimateApiService {
     } catch (_) {
       return body;
     }
+  }
+
+  static Map<String, dynamic> _decodeRawMap(dynamic value) {
+    if (value is Map) {
+      return value.cast<String, dynamic>();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      try {
+        final dynamic decoded = jsonDecode(value);
+        if (decoded is Map) {
+          return decoded.cast<String, dynamic>();
+        }
+      } catch (_) {
+        return const <String, dynamic>{};
+      }
+    }
+    return const <String, dynamic>{};
   }
 
   static String? _messageFrom(dynamic data) {

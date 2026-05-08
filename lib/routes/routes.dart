@@ -14,6 +14,7 @@ abstract final class AppRoutes {
   static const String search = '/search';
   static const String myData = '/my-data';
   static const String estimate = '/estimate';
+  static const String savedEstimates = '/saved-estimates';
   static const String windowSlopes = '/window-slopes';
   static const String productDetails = '/product-details';
 }

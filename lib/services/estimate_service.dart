@@ -1,6 +1,29 @@
 import 'package:flutter/foundation.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
 
+class EstimateCalculationInput {
+  const EstimateCalculationInput({
+    required this.facadeAreaM2,
+    this.openingAreaM2 = 0,
+    this.openingPerimeterLm = 0,
+    this.windowCount = 0,
+    this.cornerLengthLm = 0,
+    this.sealingLengthLm = 0,
+  });
+
+  final double facadeAreaM2;
+  final double openingAreaM2;
+  final double openingPerimeterLm;
+  final int windowCount;
+  final double cornerLengthLm;
+  final double sealingLengthLm;
+
+  double get netFacadeAreaM2 {
+    final double net = facadeAreaM2 - openingAreaM2;
+    return net > 0 ? net : 0;
+  }
+}
+
 class EstimateLine {
   const EstimateLine({required this.item, required this.quantity});
 
@@ -29,6 +52,30 @@ class EstimateLine {
 
   EstimateLine copyWith({int? quantity}) {
     return EstimateLine(item: item, quantity: quantity ?? this.quantity);
+  }
+
+  int quantityForArea(double areaM2) {
+    if (areaM2 <= 0) {
+      return quantity;
+    }
+    if (item.category == 'work') {
+      return EstimateService.quantityForWork(
+        item,
+        EstimateCalculationInput(facadeAreaM2: areaM2),
+      );
+    }
+    final String rawArea = '${item.raw['area_m2'] ?? ''}'
+        .replaceAll(',', '.')
+        .trim();
+    final double panelArea = double.tryParse(rawArea) ?? 0;
+    if (panelArea > 0) {
+      return (areaM2 / panelArea).ceil().clamp(1, 999999);
+    }
+    final String unit = (item.unit ?? '').toLowerCase();
+    if (unit.contains('м²') || unit.contains('м2')) {
+      return areaM2.ceil().clamp(1, 999999);
+    }
+    return quantity;
   }
 }
 
@@ -59,6 +106,45 @@ abstract final class EstimateService {
     lines.value = current;
   }
 
+  static List<EstimateLine> materialLines(List<EstimateLine> source) {
+    return source
+        .where((EstimateLine line) => line.item.category != 'work')
+        .toList(growable: false);
+  }
+
+  static List<EstimateLine> workLines(List<EstimateLine> source) {
+    return source
+        .where((EstimateLine line) => line.item.category == 'work')
+        .toList(growable: false);
+  }
+
+  static int quantityForWork(CatalogItem item, EstimateCalculationInput input) {
+    final String calcRule = '${item.raw['calc_rule'] ?? ''}'.trim();
+    switch (calcRule) {
+      case 'facade_area_m2':
+        return _ceilPositive(input.netFacadeAreaM2);
+      case 'fixed_once':
+        return 1;
+      case 'opening_perimeter_lm':
+        return _ceilPositive(input.openingPerimeterLm);
+      case 'window_count':
+        return input.windowCount.clamp(1, 999999);
+      case 'corner_length_lm':
+        return _ceilPositive(input.cornerLengthLm);
+      case 'sealing_length_lm':
+        return _ceilPositive(input.sealingLengthLm);
+      default:
+        return 1;
+    }
+  }
+
+  static int _ceilPositive(double value) {
+    if (value <= 0) {
+      return 1;
+    }
+    return value.ceil().clamp(1, 999999);
+  }
+
   static void updateQuantity(EstimateLine line, int quantity) {
     if (quantity < 1) {
       removeLine(line);
@@ -81,6 +167,25 @@ abstract final class EstimateService {
 
   static void clear() {
     lines.value = <EstimateLine>[];
+  }
+
+  static void replaceAll(List<EstimateLine> estimateLines) {
+    lines.value = List<EstimateLine>.from(estimateLines);
+  }
+
+  static int applyArea(double areaM2) {
+    int changed = 0;
+    lines.value = lines.value
+        .map((EstimateLine line) {
+          final int nextQuantity = line.quantityForArea(areaM2);
+          if (nextQuantity != line.quantity) {
+            changed += 1;
+            return line.copyWith(quantity: nextQuantity);
+          }
+          return line;
+        })
+        .toList(growable: false);
+    return changed;
   }
 
   static double total(List<EstimateLine> estimateLines) {

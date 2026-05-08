@@ -26,6 +26,26 @@ declare(strict_types=1);
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
 
+function tp_estimates_auth_user_id(): ?int
+{
+    if (function_exists('tp_auth_user_id')) {
+        return tp_auth_user_id();
+    }
+
+    $token = tp_bearer_token();
+    if ($token === null || $token === '') {
+        return null;
+    }
+    $pdo = tp_pdo();
+    $st = $pdo->prepare('SELECT id FROM user_profiles WHERE token = ? LIMIT 1');
+    $st->execute([$token]);
+    $row = $st->fetch();
+    if ($row === false) {
+        return null;
+    }
+    return (int) $row['id'];
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     tp_json_response(405, ['error' => 'Method Not Allowed']);
     exit;
@@ -43,18 +63,24 @@ try {
     if ($title === '') {
         $title = 'Смета';
     }
+    $calculation = isset($data['calculation']) && is_array($data['calculation'])
+        ? $data['calculation']
+        : null;
+    $estimateRawJson = $calculation === null
+        ? null
+        : json_encode(['calculation' => $calculation], JSON_UNESCAPED_UNICODE);
     $items = $data['items'] ?? null;
     if (!is_array($items) || count($items) === 0) {
         tp_json_response(400, ['message' => 'Смета пустая']);
         exit;
     }
 
-    $pdo = tp_pdo();
-    $userId = tp_auth_user_id();
+    $userId = tp_estimates_auth_user_id();
     if ($userId === null) {
         tp_json_response(401, ['error' => 'Недействительный токен']);
         exit;
     }
+    $pdo = tp_pdo();
     $pdo->beginTransaction();
 
     $total = 0.0;
@@ -90,10 +116,10 @@ try {
     }
 
     $st = $pdo->prepare(
-        'INSERT INTO estimates (user_id, title, status, total_amount)
-         VALUES (?, ?, ?, ?)'
+        'INSERT INTO estimates (user_id, title, status, total_amount, raw_json)
+         VALUES (?, ?, ?, ?, ?)'
     );
-    $st->execute([$userId, $title, 'draft', $total]);
+    $st->execute([$userId, $title, 'draft', $total, $estimateRawJson]);
     $estimateId = (int) $pdo->lastInsertId();
 
     $itemSt = $pdo->prepare(
@@ -127,6 +153,7 @@ try {
         'total_amount' => $total,
     ]);
 } catch (Throwable $e) {
+    error_log('Estimate save error: ' . $e->getMessage());
     try {
         if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
             $pdo->rollBack();
