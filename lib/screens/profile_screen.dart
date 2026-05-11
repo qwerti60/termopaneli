@@ -120,6 +120,10 @@ class ProfileScreen extends StatelessWidget {
                       onTap: () => AppRouter.pushSavedEstimates(context),
                     ),
                     _MenuItem(
+                      title: 'Заявки (админ)',
+                      onTap: () => AppRouter.pushAdminRequests(context),
+                    ),
+                    _MenuItem(
                       title: 'Дом',
                       onTap: () => AppRouter.pushHome(context),
                     ),

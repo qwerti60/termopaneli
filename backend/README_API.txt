@@ -32,6 +32,7 @@
                                              параметры: status=new|in_work|need_info|done|closed|cancelled, limit=1..200
    POST .../api/v1/admin/requests/status.php — смена статуса заявки, Authorization: Bearer <admin_api_token>
                                              тело JSON {"request_id":123,"status":"in_work"}
+   В приложении: Профиль -> Заявки (админ) — ввод admin token, список и смена статуса.
 
    Для откосов и дополнительных элементов выполните:
    sql/schema_catalog_materials.sql

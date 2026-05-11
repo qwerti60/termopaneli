@@ -13,6 +13,7 @@ import 'package:termopaneli_app/screens/personal_data_screen.dart';
 import 'package:termopaneli_app/screens/profile_screen.dart';
 import 'package:termopaneli_app/screens/product_details_screen.dart';
 import 'package:termopaneli_app/screens/registration_screen.dart';
+import 'package:termopaneli_app/screens/admin_requests_screen.dart';
 import 'package:termopaneli_app/screens/saved_estimates_screen.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
 import 'package:termopaneli_app/services/estimate_api_service.dart';
@@ -98,6 +99,11 @@ abstract final class AppRouter {
       case AppRoutes.savedEstimates:
         return MaterialPageRoute<void>(
           builder: (_) => const SavedEstimatesScreen(),
+          settings: settings,
+        );
+      case AppRoutes.adminRequests:
+        return MaterialPageRoute<void>(
+          builder: (_) => const AdminRequestsScreen(),
           settings: settings,
         );
       case AppRoutes.windowSlopes:
@@ -216,6 +222,10 @@ abstract final class AppRouter {
     BuildContext context,
   ) {
     return Navigator.pushNamed<T>(context, AppRoutes.savedEstimates);
+  }
+
+  static Future<T?> pushAdminRequests<T extends Object?>(BuildContext context) {
+    return Navigator.pushNamed<T>(context, AppRoutes.adminRequests);
   }
 
   static Future<T?> pushWindowSlopes<T extends Object?>(BuildContext context) {
