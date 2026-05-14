@@ -49,3 +49,6 @@ run_smsc_local.sh
 
 # Локальный PHP-конфиг с доступами к БД (не коммитить)
 backend/public/config.php
+
+# Случайный архив каталога settings (не часть репозитория)
+backend/public/api/v1/settings.zip
