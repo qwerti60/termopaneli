@@ -24,6 +24,16 @@ class EstimateCalculationInput {
   }
 }
 
+double _readRawDouble(dynamic value) {
+  if (value == null) {
+    return 0;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  return double.tryParse(value.toString().replaceAll(',', '.').trim()) ?? 0;
+}
+
 class EstimateLine {
   const EstimateLine({required this.item, required this.quantity});
 
@@ -34,10 +44,20 @@ class EstimateLine {
     final dynamic sku =
         item.raw['sku'] ?? item.raw['article'] ?? item.raw['id'];
     final String stableId = sku?.toString().trim() ?? '';
+    final String instance =
+        '${item.raw['line_instance'] ?? ''}'.trim();
     if (stableId.isNotEmpty) {
-      return '${item.category}:$stableId';
+      final String base = '${item.category}:$stableId';
+      if (instance.isNotEmpty) {
+        return '$base:$instance';
+      }
+      return base;
     }
-    return '${item.category}:${item.title}';
+    final String title = item.title;
+    if (instance.isNotEmpty) {
+      return '${item.category}:$title:$instance';
+    }
+    return '${item.category}:$title';
   }
 
   double get price {
@@ -48,7 +68,25 @@ class EstimateLine {
     return double.tryParse(normalized) ?? 0;
   }
 
-  double get total => price * quantity;
+  double get subtotal => price * quantity;
+
+  double get total {
+    double v = subtotal;
+    final double pct = _readRawDouble(item.raw['line_discount_percent']);
+    if (pct > 0) {
+      v *= 1 - pct.clamp(0, 100) / 100;
+    }
+    final double fix = _readRawDouble(item.raw['line_discount_fixed_rub']);
+    if (fix > 0) {
+      v -= fix;
+    }
+    if (v < 0) {
+      return 0;
+    }
+    return v;
+  }
+
+  bool get hasLineDiscount => (subtotal - total) > 0.009;
 
   EstimateLine copyWith({int? quantity}) {
     return EstimateLine(item: item, quantity: quantity ?? this.quantity);
@@ -86,24 +124,64 @@ abstract final class EstimateService {
       ValueNotifier<List<EstimateLine>>(<EstimateLine>[]);
 
   static void addItem(CatalogItem item, {int quantity = 1}) {
-    final int safeQuantity = quantity < 1 ? 1 : quantity;
+    if (quantity < 1) {
+      return;
+    }
     final List<EstimateLine> current = List<EstimateLine>.from(lines.value);
-    final EstimateLine incoming = EstimateLine(
-      item: item,
-      quantity: safeQuantity,
-    );
+    final EstimateLine incoming = EstimateLine(item: item, quantity: quantity);
     final int index = current.indexWhere(
       (EstimateLine line) => line.key == incoming.key,
     );
     if (index >= 0) {
       final EstimateLine existing = current[index];
       current[index] = existing.copyWith(
-        quantity: existing.quantity + safeQuantity,
+        quantity: existing.quantity + quantity,
       );
     } else {
       current.add(incoming);
     }
     lines.value = current;
+  }
+
+  /// Обновить позицию (тот же [EstimateLine.key]) с новым [CatalogItem], количество сохраняется.
+  static void replaceLineItem(EstimateLine line, CatalogItem newItem) {
+    final String k = line.key;
+    lines.value = lines.value
+        .map(
+          (EstimateLine l) => l.key == k
+              ? EstimateLine(item: newItem, quantity: l.quantity)
+              : l,
+        )
+        .toList(growable: false);
+  }
+
+  /// Примечание к строке работы (попадает в `raw_json` при сохранении сметы).
+  static void updateWorkLineNote(EstimateLine line, String note) {
+    if (line.item.category != 'work') {
+      return;
+    }
+    final String trimmed = note.trim();
+    final CatalogItem next = line.item.withMergedRaw(
+      rawPatch: <String, dynamic>{'line_note': trimmed},
+    );
+    replaceLineItem(line, next);
+  }
+
+  static void updateWorkLineDiscount(
+    EstimateLine line, {
+    required double percent,
+    required double fixedRub,
+  }) {
+    if (line.item.category != 'work') {
+      return;
+    }
+    final CatalogItem next = line.item.withMergedRaw(
+      rawPatch: <String, dynamic>{
+        'line_discount_percent': percent <= 0 ? 0 : percent.clamp(0, 100),
+        'line_discount_fixed_rub': fixedRub <= 0 ? 0 : fixedRub,
+      },
+    );
+    replaceLineItem(line, next);
   }
 
   static List<EstimateLine> materialLines(List<EstimateLine> source) {
@@ -126,8 +204,14 @@ abstract final class EstimateService {
       case 'fixed_once':
         return 1;
       case 'opening_perimeter_lm':
-        return _ceilPositive(input.openingPerimeterLm);
+        if (input.openingPerimeterLm <= 0) {
+          return 0;
+        }
+        return input.openingPerimeterLm.ceil().clamp(1, 999999);
       case 'window_count':
+        if (input.windowCount <= 0) {
+          return 0;
+        }
         return input.windowCount.clamp(1, 999999);
       case 'corner_length_lm':
         return _ceilPositive(input.cornerLengthLm);
@@ -188,10 +272,21 @@ abstract final class EstimateService {
     return changed;
   }
 
-  static double total(List<EstimateLine> estimateLines) {
-    return estimateLines.fold<double>(
+  static double total(
+    List<EstimateLine> estimateLines, {
+    double estimateDiscountPercent = 0,
+    double estimateDiscountRub = 0,
+  }) {
+    double sum = estimateLines.fold<double>(
       0,
-      (double sum, EstimateLine line) => sum + line.total,
+      (double s, EstimateLine line) => s + line.total,
     );
+    if (estimateDiscountPercent > 0) {
+      sum *= 1 - estimateDiscountPercent.clamp(0, 100) / 100;
+    }
+    if (estimateDiscountRub > 0) {
+      sum = (sum - estimateDiscountRub).clamp(0, double.infinity);
+    }
+    return sum;
   }
 }

@@ -1,9 +1,16 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
+import 'package:termopaneli_app/screens/estimate_pdf_preview_screen.dart';
+import 'package:termopaneli_app/services/company_pdf_api_service.dart';
 import 'package:termopaneli_app/services/estimate_api_service.dart';
+import 'package:termopaneli_app/services/estimate_pdf_export.dart';
+import 'package:termopaneli_app/services/estimate_share_text.dart';
 
 class SavedEstimatesScreen extends StatefulWidget {
   const SavedEstimatesScreen({super.key});
@@ -69,6 +76,9 @@ class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
     final String? comment = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
+      // Иначе смахивание / тап вне листа даёт null и заявка не уходит, хотя пользователь «уже отправлял».
+      isDismissible: false,
+      enableDrag: false,
       backgroundColor: AppColors.pageBackground,
       builder: (BuildContext context) => const _SubmitEstimateSheet(),
     );
@@ -187,8 +197,8 @@ class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
                       final List<SavedEstimate> filtered = estimates
                           .where(
                             (SavedEstimate estimate) => _showRequests
-                                ? estimate.status == 'submitted'
-                                : estimate.status != 'submitted',
+                                ? estimate.hasEstimateRequest
+                                : !estimate.hasEstimateRequest,
                           )
                           .toList(growable: false);
                       if (filtered.isEmpty) {
@@ -213,8 +223,7 @@ class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (BuildContext context, int index) {
                           final SavedEstimate estimate = filtered[index];
-                          final bool isSubmitted =
-                              estimate.status == 'submitted';
+                          final bool isSubmitted = estimate.hasEstimateRequest;
                           final bool isSubmitting =
                               _submittingEstimateId == estimate.id;
                           return _SavedEstimateCard(
@@ -424,6 +433,24 @@ class _SavedEstimateCard extends StatelessWidget {
               fontSize: AppTextSizes.s28,
             ),
           ),
+          if (EstimateShareText.estimateDiscountCaption(
+                lineItemsSum: estimate.items.fold<double>(
+                  0,
+                  (double s, SavedEstimateItem i) => s + i.totalPrice,
+                ),
+                totalAmount: estimate.totalAmount,
+                calculation: estimate.calculation,
+              )
+              case final String discountLine) ...[
+            const SizedBox(height: 2),
+            Text(
+              discountLine,
+              style: const TextStyle(
+                color: Color(0xFF8D6E63),
+                fontSize: AppTextSizes.s28,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -478,8 +505,17 @@ class _SavedEstimateDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isSubmitted = estimate.status == 'submitted';
+    final bool isSubmitted = estimate.hasEstimateRequest;
     final String? requestComment = estimate.requestComment;
+    final double linesSum = estimate.items.fold<double>(
+      0,
+      (double s, SavedEstimateItem i) => s + i.totalPrice,
+    );
+    final String? discountCaption = EstimateShareText.estimateDiscountCaption(
+      lineItemsSum: linesSum,
+      totalAmount: estimate.totalAmount,
+      calculation: estimate.calculation,
+    );
     return SafeArea(
       child: DraggableScrollableSheet(
         expand: false,
@@ -503,6 +539,60 @@ class _SavedEstimateDetails extends StatelessWidget {
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Поделиться текстом',
+                      onPressed: () async {
+                        final String text = EstimateShareText.fromSaved(
+                          estimate: estimate,
+                          statusLine: _statusLabel(estimate),
+                          requestComment: estimate.requestComment,
+                        );
+                        await SharePlus.instance.share(
+                          ShareParams(
+                            text: text,
+                            subject: estimate.title,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.share_outlined),
+                    ),
+                    IconButton(
+                      tooltip: 'Поделиться PDF',
+                      onPressed: () async {
+                        try {
+                          final company = await CompanyPdfApiService.fetchForPdf();
+                          final Uint8List bytes =
+                              await EstimatePdfExport.buildFromSaved(
+                            estimate: estimate,
+                            statusLine: _statusLabel(estimate),
+                            company: company,
+                            requestComment: estimate.requestComment,
+                          );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          final String name = 'smeta_${estimate.id}.pdf';
+                          await Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => EstimatePdfPreviewScreen(
+                                pdfBytes: bytes,
+                                shareFileName: name,
+                                shareSubject: estimate.title,
+                              ),
+                            ),
+                          );
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Не удалось создать PDF: $e'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                    ),
+                    IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close),
                     ),
@@ -511,9 +601,24 @@ class _SavedEstimateDetails extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  '${_statusLabel(estimate)} • ${money(estimate.totalAmount)}',
-                  style: AppTextTheme.body32,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      '${_statusLabel(estimate)} • ${money(estimate.totalAmount)}',
+                      style: AppTextTheme.body32,
+                    ),
+                    if (discountCaption != null) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        discountCaption,
+                        style: const TextStyle(
+                          color: Color(0xFF8D6E63),
+                          fontSize: AppTextSizes.s28,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -672,7 +777,7 @@ class _SavedEmptyState extends StatelessWidget {
 }
 
 String _statusLabel(SavedEstimate estimate) {
-  if (estimate.status == 'submitted') {
+  if (estimate.hasEstimateRequest) {
     switch (estimate.requestStatus) {
       case 'new':
       case null:
@@ -691,6 +796,9 @@ String _statusLabel(SavedEstimate estimate) {
       default:
         return 'заявка: ${estimate.requestStatus}';
     }
+  }
+  if (estimate.status == 'submitted') {
+    return 'заявка не создана на сервере — отправьте снова';
   }
   switch (estimate.status) {
     case 'draft':

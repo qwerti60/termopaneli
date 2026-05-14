@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:termopaneli_app/auth/pending_registration.dart';
+import 'package:termopaneli_app/config/legal_urls.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/routes/routes.dart';
@@ -23,6 +25,27 @@ class PersonalDataConfirmScreen extends StatefulWidget {
 class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
   static final Uri _telegramChannelUri = Uri.parse('https://t.me/facade_panel');
   bool _isSaving = false;
+  bool _agreementAccepted = false;
+  late final TapGestureRecognizer _agreementLinkTap;
+
+  @override
+  void initState() {
+    super.initState();
+    _agreementLinkTap = TapGestureRecognizer()..onTap = _openUserAgreement;
+  }
+
+  @override
+  void dispose() {
+    _agreementLinkTap.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openUserAgreement() async {
+    await launchUrl(
+      await LegalUrls.userAgreementResolved(),
+      mode: LaunchMode.externalApplication,
+    );
+  }
 
   Future<bool> _openTelegramChannel() {
     return launchUrl(
@@ -72,6 +95,12 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
   }
 
   Future<void> _showContinueDialog() async {
+    if (!_agreementAccepted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Примите пользовательское соглашение')),
+      );
+      return;
+    }
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -116,6 +145,7 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
       firstName: pending.firstName,
       middleName: pending.middleName,
       email: pending.email,
+      acceptedUserAgreement: _agreementAccepted,
     );
     if (!mounted) {
       return;
@@ -179,9 +209,46 @@ class _PersonalDataConfirmScreenState extends State<PersonalDataConfirmScreen> {
                 label: 'Эл. почта',
                 value: widget.pending.email,
               ),
-              const SizedBox(height: 34),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _agreementAccepted,
+                    onChanged: _isSaving
+                        ? null
+                        : (bool? v) {
+                            setState(() => _agreementAccepted = v ?? false);
+                          },
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: RichText(
+                        text: TextSpan(
+                          style: AppTextTheme.body32,
+                          children: <InlineSpan>[
+                            const TextSpan(text: 'Я принимаю '),
+                            TextSpan(
+                              text: 'пользовательское соглашение',
+                              style: AppTextTheme.body32.copyWith(
+                                color: AppColors.primaryButtonBackground,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: _agreementLinkTap,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
               TextButton(
-                onPressed: _isSaving ? null : _showContinueDialog,
+                onPressed: (_isSaving || !_agreementAccepted)
+                    ? null
+                    : _showContinueDialog,
                 style: TextButton.styleFrom(
                   fixedSize: const Size(double.infinity, 33),
                   padding: EdgeInsets.zero,

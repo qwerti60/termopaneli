@@ -19,9 +19,11 @@
    POST .../api/v1/auth/request-sms.php      — тело JSON {"phone":"79991234567"}
    POST .../api/v1/auth/verify-phone.php     — тело JSON {"phone":"...","code":"123456"}
                                               для существующего вернет token, для нового — is_new_user=true
-   POST .../api/v1/auth/register.php         — тело JSON с phone+code+ФИО+email, создает user_profiles и выдает token
+   POST .../api/v1/auth/register.php         — тело JSON с phone+code+ФИО+email и accepted_user_agreement: true, создает user_profiles и выдает token
    GET  .../api/v1/catalog/list.php          — каталог панелей и материалов
                                                параметры: category=all|panel|slope|corner|grout|ebb|soffit|plinth|fastener
+   GET  .../api/v1/settings/company-for-pdf.php — JSON реквизитов и ссылок для шапки PDF (без Authorization); значения из config.php (ключ company_pdf) с дефолтами в PHP
+   GET  .../api/v1/settings/app-manifest.php — единый JSON: company_pdf (как выше) + user_agreement_url + privacy_policy_url (опционально из config.php → app_manifest)
    GET  .../api/v1/work-prices/list.php      — тестовый прайс работ для сметы
    POST .../api/v1/estimates/save.php        — сохранение сметы, Authorization: Bearer <token>
    GET  .../api/v1/estimates/list.php        — список смет пользователя, Authorization: Bearer <token>
@@ -50,9 +52,12 @@
    - verify-phone.php:
        * существующий пользователь -> новый token;
        * новый пользователь -> только признак is_new_user=true;
-   - register.php принимает ФИО+email (обязательно), создает user_profiles и возвращает token.
+   - register.php принимает ФИО+email (обязательно), accepted_user_agreement: true, создает user_profiles и возвращает token.
 
-Если в config не заданы sms, код всё равно сохраняется в БД, но SMS не уйдёт (для отладки можно временно смотреть код в таблице sms_otp).
+   Пользовательское соглашение: файл public/api/agreement.html — разместите на сервере по URL https://<хост>/api/agreement.html
+   (рядом с каталогом tp_api, если API в /tp_api/). Текст соглашения в репозитории обновляйте при смене реквизитов.
+
+   Реквизиты для PDF: залейте public/api/v1/settings/company-for-pdf.php; при необходимости задайте в config.php ключ company_pdf (см. config.example.php)., код всё равно сохраняется в БД, но SMS не уйдёт (для отладки можно временно смотреть код в таблице sms_otp).
 
 DEV-режим фиксированного кода:
 - В config.php можно задать 'dev_static_otp_code' => '123456'.

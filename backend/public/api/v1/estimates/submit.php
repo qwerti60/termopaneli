@@ -154,6 +154,29 @@ try {
     );
     $st->execute(['submitted', $estimateId, $userId]);
 
+    $verifySt = $pdo->prepare(
+        'SELECT id
+         FROM estimate_requests
+         WHERE estimate_id = ? AND user_id = ?
+         ORDER BY id DESC
+         LIMIT 1'
+    );
+    $verifySt->execute([$estimateId, $userId]);
+    $verifyRow = $verifySt->fetch();
+    if ($verifyRow === false) {
+        $pdo->rollBack();
+        error_log(
+            'Estimate submit: нет строки estimate_requests после upsert, estimate_id='
+            . $estimateId . ', user_id=' . $userId
+        );
+        tp_json_response(500, [
+            'error' => 'Заявка не сохранилась',
+            'message' => 'Повторите отправку. Если ошибка повторится — проверьте таблицу estimate_requests на сервере.',
+        ]);
+        exit;
+    }
+    $requestId = (int) $verifyRow['id'];
+
     $pdo->commit();
 
     tp_json_response(200, [

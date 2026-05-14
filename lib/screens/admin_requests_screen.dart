@@ -3,6 +3,7 @@ import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/services/admin_requests_api_service.dart';
+import 'package:termopaneli_app/services/estimate_share_text.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 
 const List<String> _adminStatusValues = <String>[
@@ -296,6 +297,12 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (BuildContext context, int index) {
                           final AdminEstimateRequest item = r.items[index];
+                          final String? discountCaption =
+                              EstimateShareText.estimateDiscountCaption(
+                            lineItemsSum: item.lineItemsSum,
+                            totalAmount: item.totalAmount,
+                            calculation: item.estimateCalculation,
+                          );
                           return Material(
                             color: Colors.white,
                             borderRadius: const BorderRadius.all(
@@ -343,6 +350,16 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
                                       item.createdAt,
                                       style: AppTextTheme.body32,
                                     ),
+                                    if (discountCaption != null) ...<Widget>[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        discountCaption,
+                                        style: const TextStyle(
+                                          color: Color(0xFF8D6E63),
+                                          fontSize: AppTextSizes.s28,
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -452,6 +469,18 @@ class _AdminRequestDetailsSheetState extends State<_AdminRequestDetailsSheet> {
                     ]),
                   if (r.comment != null && r.comment!.isNotEmpty)
                     _detailBlock('Комментарий', [r.comment!]),
+                  if (r.shouldShowEstimateDiscount)
+                    _detailBlock('Итоги и скидка на смету', <String>[
+                      'Сумма по строкам: ${widget.money(r.lineItemsSum)}',
+                      if (r.estimateDiscountPercent > 0)
+                        'Скидка % на смету: ${r.estimateDiscountPercent.toStringAsFixed(0)} %',
+                      if (r.estimateDiscountRub > 0)
+                        'Скидка фикс на смету: ${widget.money(r.estimateDiscountRub)}',
+                      'Итого (total_amount): ${widget.money(r.totalAmount)}',
+                      if (r.lineSumDiffersFromTotal &&
+                          !r.hasEstimateLevelDiscount)
+                        'Сумма строк ≠ итог, в calculation нет скидки на смету — проверьте данные.',
+                    ]),
                   const SizedBox(height: 8),
                   Text(
                     'Статус',

@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_styles.dart';
@@ -6,7 +9,11 @@ import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
 import 'package:termopaneli_app/services/estimate_api_service.dart';
+import 'package:termopaneli_app/screens/estimate_pdf_preview_screen.dart';
+import 'package:termopaneli_app/services/company_pdf_api_service.dart';
+import 'package:termopaneli_app/services/estimate_pdf_export.dart';
 import 'package:termopaneli_app/services/estimate_service.dart';
+import 'package:termopaneli_app/services/estimate_share_text.dart';
 import 'package:termopaneli_app/services/work_price_api_service.dart';
 
 class _OpeningDraft {
@@ -60,6 +67,8 @@ class _EstimateScreenState extends State<EstimateScreen> {
   final TextEditingController _sealingLengthController =
       TextEditingController();
   final List<_OpeningDraft> _openings = <_OpeningDraft>[];
+  double _estimateDiscountPercent = 0;
+  double _estimateDiscountRub = 0;
 
   @override
   void initState() {
@@ -114,6 +123,8 @@ class _EstimateScreenState extends State<EstimateScreen> {
     _sealingLengthController.text = _stringFromCalculation(
       calculation['sealing_length_lm'],
     );
+    _estimateDiscountPercent = _doubleFromCalc(calculation, 'estimate_discount_percent');
+    _estimateDiscountRub = _doubleFromCalc(calculation, 'estimate_discount_rub');
 
     final Object? openings = calculation['openings'];
     if (openings is List) {
@@ -142,6 +153,17 @@ class _EstimateScreenState extends State<EstimateScreen> {
       return _formatNumber(value.toDouble());
     }
     return '$value';
+  }
+
+  double _doubleFromCalc(Map<String, dynamic> map, String key) {
+    final Object? v = map[key];
+    if (v == null) {
+      return 0;
+    }
+    if (v is num) {
+      return v.toDouble();
+    }
+    return double.tryParse(v.toString().replaceAll(',', '.').trim()) ?? 0;
   }
 
   Future<void> _saveEstimate(List<EstimateLine> lines) async {
@@ -251,6 +273,8 @@ class _EstimateScreenState extends State<EstimateScreen> {
             },
           )
           .toList(growable: false),
+      'estimate_discount_percent': _estimateDiscountPercent,
+      'estimate_discount_rub': _estimateDiscountRub,
     };
   }
 
@@ -351,10 +375,221 @@ class _EstimateScreenState extends State<EstimateScreen> {
     final int quantity = input == null
         ? 1
         : EstimateService.quantityForWork(item, input);
+    if (quantity < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Недостаточно данных для количества (площадь фасада, проёмы, окна).',
+          ),
+        ),
+      );
+      return;
+    }
     EstimateService.addItem(item, quantity: quantity);
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Работа добавлена: ${item.title}')));
+  }
+
+  void _addSlopeEbbFromOpenings(List<CatalogItem> items) {
+    if (_openings.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Добавьте проёмы в блоке «Окна и двери»')),
+      );
+      return;
+    }
+    final EstimateCalculationInput? input = _readCalculationInput();
+    if (input == null) {
+      return;
+    }
+    CatalogItem? slope;
+    CatalogItem? ebb;
+    for (final CatalogItem item in items) {
+      final String sku = '${item.raw['sku'] ?? ''}'.trim();
+      if (sku == 'WORK-SLOPE-LM') {
+        slope = item;
+      } else if (sku == 'WORK-EBB-PCS') {
+        ebb = item;
+      }
+    }
+    int added = 0;
+    final List<String> notes = <String>[];
+    if (slope != null) {
+      final int q = EstimateService.quantityForWork(slope, input);
+      if (q >= 1) {
+        EstimateService.addItem(slope, quantity: q);
+        added += 1;
+      } else {
+        notes.add('откосы не добавлены (нет периметра проёмов)');
+      }
+    }
+    if (ebb != null) {
+      final int q = EstimateService.quantityForWork(ebb, input);
+      if (q >= 1) {
+        EstimateService.addItem(ebb, quantity: q);
+        added += 1;
+      } else {
+        notes.add('отлив не добавлен (нет окон в списке)');
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    final String base = added > 0
+        ? 'В смету добавлено позиций: $added'
+        : 'Нечего добавить по текущим размерам';
+    final String msg = notes.isEmpty ? base : '$base. ${notes.join('; ')}';
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _addSlopeEbbPerOpening(List<CatalogItem> items) {
+    if (_openings.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Добавьте проёмы в блоке «Окна и двери»')),
+      );
+      return;
+    }
+    CatalogItem? slope;
+    CatalogItem? ebb;
+    for (final CatalogItem item in items) {
+      final String sku = '${item.raw['sku'] ?? ''}'.trim();
+      if (sku == 'WORK-SLOPE-LM') {
+        slope = item;
+      } else if (sku == 'WORK-EBB-PCS') {
+        ebb = item;
+      }
+    }
+    int added = 0;
+    for (int i = 0; i < _openings.length; i++) {
+      final _OpeningDraft o = _openings[i];
+      final double p = o.perimeterLm;
+      if (slope != null && p > 0) {
+        final int q = p.ceil();
+        final String typeRu = o.isWindow ? 'окно' : 'дверь';
+        final CatalogItem row = slope.withMergedRaw(
+          title: '${slope.title} (проём ${i + 1})',
+          subtitle:
+              '$typeRu • ${_formatOpeningLm(o.widthM)}×${_formatOpeningLm(o.heightM)} м',
+          rawPatch: <String, dynamic>{'line_instance': 'opening_${i}_slope'},
+        );
+        EstimateService.addItem(row, quantity: q);
+        added += 1;
+      }
+      if (ebb != null && o.isWindow) {
+        final CatalogItem row = ebb.withMergedRaw(
+          title: '${ebb.title} (проём ${i + 1})',
+          subtitle:
+              'окно • ${_formatOpeningLm(o.widthM)}×${_formatOpeningLm(o.heightM)} м',
+          rawPatch: <String, dynamic>{'line_instance': 'opening_${i}_ebb'},
+        );
+        EstimateService.addItem(row, quantity: 1);
+        added += 1;
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    if (added == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Нет строк: задайте ширину и высоту проёмов; отлив только для типа «Окно».',
+          ),
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Добавлено отдельных строк: $added')));
+  }
+
+  void _onEditWorkLineNote(EstimateLine line) {
+    _showWorkLineNoteDialog(line);
+  }
+
+  Future<void> _showWorkLineNoteDialog(EstimateLine line) async {
+    final String? result = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => _WorkLineNoteDialog(
+        initialText: '${line.item.raw['line_note'] ?? ''}',
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    EstimateService.updateWorkLineNote(line, result);
+  }
+
+  void _onEditWorkLineDiscount(EstimateLine line) {
+    _showWorkLineDiscountDialog(line);
+  }
+
+  Future<void> _showWorkLineDiscountDialog(EstimateLine line) async {
+    final Map<String, double>? result = await showDialog<Map<String, double>>(
+      context: context,
+      builder: (BuildContext ctx) => _WorkLineDiscountDialog(
+        initialPercent: _lineDiscountPercent(line),
+        initialFixedRub: _lineDiscountFixed(line),
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    EstimateService.updateWorkLineDiscount(
+      line,
+      percent: result['pct'] ?? 0,
+      fixedRub: result['fix'] ?? 0,
+    );
+  }
+
+  double _lineDiscountPercent(EstimateLine line) {
+    final Object? v = line.item.raw['line_discount_percent'];
+    if (v == null) {
+      return 0;
+    }
+    if (v is num) {
+      return v.toDouble();
+    }
+    return double.tryParse(v.toString().replaceAll(',', '.')) ?? 0;
+  }
+
+  double _lineDiscountFixed(EstimateLine line) {
+    final Object? v = line.item.raw['line_discount_fixed_rub'];
+    if (v == null) {
+      return 0;
+    }
+    if (v is num) {
+      return v.toDouble();
+    }
+    return double.tryParse(v.toString().replaceAll(',', '.')) ?? 0;
+  }
+
+  Future<void> _showEstimateDiscountDialog() async {
+    final Map<String, double>? result = await showDialog<Map<String, double>>(
+      context: context,
+      builder: (BuildContext ctx) => _EstimateDiscountDialog(
+        initialPercent: _estimateDiscountPercent,
+        initialFixedRub: _estimateDiscountRub,
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    setState(() {
+      _estimateDiscountPercent = result['pct'] ?? 0;
+      _estimateDiscountRub = result['fix'] ?? 0;
+    });
+  }
+
+  void _clearEstimate() {
+    setState(() {
+      _estimateDiscountPercent = 0;
+      _estimateDiscountRub = 0;
+    });
+    EstimateService.clear();
   }
 
   void _addDefaultWorks(List<CatalogItem> items) {
@@ -365,10 +600,11 @@ class _EstimateScreenState extends State<EstimateScreen> {
     int added = 0;
     for (final CatalogItem item in items) {
       if (item.raw['is_default'] == true || item.raw['is_default'] == 1) {
-        EstimateService.addItem(
-          item,
-          quantity: EstimateService.quantityForWork(item, input),
-        );
+        final int q = EstimateService.quantityForWork(item, input);
+        if (q < 1) {
+          continue;
+        }
+        EstimateService.addItem(item, quantity: q);
         added += 1;
       }
     }
@@ -435,9 +671,115 @@ class _EstimateScreenState extends State<EstimateScreen> {
           money: _money,
           isSubmitting: _submittingEstimateId == estimate.id,
           onSubmit: () => _submitEstimate(estimate),
+          onShare: () => _shareSavedEstimate(estimate),
+          onSharePdf: () => _shareSavedEstimatePdf(estimate),
         );
       },
     );
+  }
+
+  Future<void> _shareCurrentEstimate() async {
+    final List<EstimateLine> lines = EstimateService.lines.value;
+    if (lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Добавьте позиции в смету')),
+      );
+      return;
+    }
+    final String text = EstimateShareText.fromCurrentLines(
+      lines: lines,
+      title: 'Смета',
+      estimateDiscountPercent: _estimateDiscountPercent,
+      estimateDiscountRub: _estimateDiscountRub,
+      calculation: Map<String, dynamic>.from(_calculationPayload()),
+    );
+    await SharePlus.instance.share(
+      ShareParams(text: text, subject: 'Смета'),
+    );
+  }
+
+  Future<void> _shareSavedEstimate(SavedEstimate estimate) async {
+    final String text = EstimateShareText.fromSaved(
+      estimate: estimate,
+      statusLine: _savedEstimateListSubtitle(estimate),
+      requestComment: estimate.requestComment,
+    );
+    await SharePlus.instance.share(
+      ShareParams(text: text, subject: estimate.title),
+    );
+  }
+
+  Future<void> _shareCurrentEstimatePdf() async {
+    final List<EstimateLine> lines = EstimateService.lines.value;
+    if (lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Добавьте позиции в смету')),
+      );
+      return;
+    }
+    try {
+      final company = await CompanyPdfApiService.fetchForPdf();
+      final Uint8List bytes = await EstimatePdfExport.buildFromCurrentLines(
+        lines: lines,
+        company: company,
+        title: 'Смета',
+        estimateDiscountPercent: _estimateDiscountPercent,
+        estimateDiscountRub: _estimateDiscountRub,
+        calculation: Map<String, dynamic>.from(_calculationPayload()),
+      );
+      if (!mounted) {
+        return;
+      }
+      final String name = 'smeta_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EstimatePdfPreviewScreen(
+            pdfBytes: bytes,
+            shareFileName: name,
+            shareSubject: 'Смета PDF',
+          ),
+        ),
+      );
+    } catch (e, st) {
+      debugPrint('PDF: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось создать PDF: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareSavedEstimatePdf(SavedEstimate estimate) async {
+    try {
+      final company = await CompanyPdfApiService.fetchForPdf();
+      final Uint8List bytes = await EstimatePdfExport.buildFromSaved(
+        estimate: estimate,
+        statusLine: _savedEstimateListSubtitle(estimate),
+        company: company,
+        requestComment: estimate.requestComment,
+      );
+      if (!mounted) {
+        return;
+      }
+      final String name = 'smeta_${estimate.id}.pdf';
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EstimatePdfPreviewScreen(
+            pdfBytes: bytes,
+            shareFileName: name,
+            shareSubject: estimate.title,
+          ),
+        ),
+      );
+    } catch (e, st) {
+      debugPrint('PDF: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось создать PDF: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -467,16 +809,28 @@ class _EstimateScreenState extends State<EstimateScreen> {
                       style: AppTextTheme.screenTitle,
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.only(right: 16),
-                    child: Text(
-                      '22.10.24',
-                      style: TextStyle(
-                        color: AppColors.headingText,
-                        fontSize: AppTextSizes.s34,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Поделиться текстом',
+                        onPressed: _shareCurrentEstimate,
+                        icon: const Icon(
+                          Icons.share_outlined,
+                          color: AppColors.headingText,
+                        ),
                       ),
-                    ),
+                      IconButton(
+                        tooltip: 'Поделиться PDF',
+                        onPressed: _shareCurrentEstimatePdf,
+                        icon: const Icon(
+                          Icons.picture_as_pdf_outlined,
+                          color: AppColors.headingText,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(width: 4),
                 ],
               ),
             ),
@@ -540,6 +894,10 @@ class _EstimateScreenState extends State<EstimateScreen> {
                                 onApplyArea: _applyAreaToCurrentEstimate,
                                 onAddDefaultWorks: _addDefaultWorks,
                                 onAddWork: _addWorkItem,
+                                onAddSlopeEbbFromOpenings: _addSlopeEbbFromOpenings,
+                                onAddSlopeEbbPerOpening: _addSlopeEbbPerOpening,
+                                onEditWorkLineNote: _onEditWorkLineNote,
+                                onEditWorkLineDiscount: _onEditWorkLineDiscount,
                                 onAddOpening: _addOpening,
                                 onRemoveOpening: _removeOpening,
                                 onOpeningTypeChanged: _setOpeningType,
@@ -554,10 +912,13 @@ class _EstimateScreenState extends State<EstimateScreen> {
                           areaController: _areaController,
                           openingAreaController: _openingAreaController,
                           savedEstimatesFuture: _savedEstimatesFuture,
+                          estimateDiscountPercent: _estimateDiscountPercent,
+                          estimateDiscountRub: _estimateDiscountRub,
                           onApplyArea: _applyAreaToCurrentEstimate,
                           onOpenSavedList: _showSavedEstimates,
                           onRefreshSaved: _refreshSaved,
-                          onClear: EstimateService.clear,
+                          onEstimateDiscount: _showEstimateDiscountDialog,
+                          onClear: _clearEstimate,
                           onSave: () => _saveEstimate(lines),
                         ),
                     ],
@@ -640,9 +1001,12 @@ class _EstimateFooter extends StatelessWidget {
     required this.areaController,
     required this.openingAreaController,
     required this.savedEstimatesFuture,
+    required this.estimateDiscountPercent,
+    required this.estimateDiscountRub,
     required this.onApplyArea,
     required this.onOpenSavedList,
     required this.onRefreshSaved,
+    required this.onEstimateDiscount,
     required this.onClear,
     required this.onSave,
   });
@@ -653,14 +1017,25 @@ class _EstimateFooter extends StatelessWidget {
   final TextEditingController areaController;
   final TextEditingController openingAreaController;
   final Future<List<SavedEstimate>> savedEstimatesFuture;
+  final double estimateDiscountPercent;
+  final double estimateDiscountRub;
   final VoidCallback onApplyArea;
   final ValueChanged<List<SavedEstimate>> onOpenSavedList;
   final VoidCallback onRefreshSaved;
+  final VoidCallback onEstimateDiscount;
   final VoidCallback onClear;
   final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
+    final double linesSum = EstimateService.total(lines);
+    final double grand = EstimateService.total(
+      lines,
+      estimateDiscountPercent: estimateDiscountPercent,
+      estimateDiscountRub: estimateDiscountRub,
+    );
+    final bool hasEstimateDiscount =
+        estimateDiscountPercent > 0 || estimateDiscountRub > 0;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: const BoxDecoration(
@@ -676,12 +1051,41 @@ class _EstimateFooter extends StatelessWidget {
                 child: Text('Итого', style: AppTextTheme.sectionTitle),
               ),
               Text(
-                money(EstimateService.total(lines)),
+                money(grand),
                 style: AppTextTheme.sectionTitle,
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          if (hasEstimateDiscount) ...[
+            const SizedBox(height: 4),
+            Text(
+              EstimateShareText.estimateDiscountCaption(
+                    lineItemsSum: linesSum,
+                    totalAmount: grand,
+                    calculation: <String, dynamic>{
+                      'estimate_discount_percent': estimateDiscountPercent,
+                      'estimate_discount_rub': estimateDiscountRub,
+                    },
+                  ) ??
+                  'Скидка на смету',
+              style: AppTextTheme.body32.copyWith(color: const Color(0xFF757575)),
+            ),
+            if ((grand - linesSum).abs() > 0.5) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Было ${money(linesSum)}',
+                style: AppTextTheme.body32.copyWith(color: const Color(0xFF757575)),
+              ),
+            ],
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onEstimateDiscount,
+              child: const Text('Скидка на смету'),
+            ),
+          ),
+          const SizedBox(height: 6),
           _AreaCalculator(
             controller: areaController,
             openingAreaController: openingAreaController,
@@ -733,6 +1137,10 @@ class _WorkPricesPanel extends StatelessWidget {
     required this.onApplyArea,
     required this.onAddDefaultWorks,
     required this.onAddWork,
+    required this.onAddSlopeEbbFromOpenings,
+    required this.onAddSlopeEbbPerOpening,
+    required this.onEditWorkLineNote,
+    required this.onEditWorkLineDiscount,
     required this.onAddOpening,
     required this.onRemoveOpening,
     required this.onOpeningTypeChanged,
@@ -752,6 +1160,10 @@ class _WorkPricesPanel extends StatelessWidget {
   final VoidCallback onApplyArea;
   final ValueChanged<List<CatalogItem>> onAddDefaultWorks;
   final ValueChanged<CatalogItem> onAddWork;
+  final ValueChanged<List<CatalogItem>> onAddSlopeEbbFromOpenings;
+  final ValueChanged<List<CatalogItem>> onAddSlopeEbbPerOpening;
+  final ValueChanged<EstimateLine> onEditWorkLineNote;
+  final ValueChanged<EstimateLine> onEditWorkLineDiscount;
   final VoidCallback onAddOpening;
   final ValueChanged<int> onRemoveOpening;
   final void Function(int index, bool isWindow) onOpeningTypeChanged;
@@ -798,6 +1210,18 @@ class _WorkPricesPanel extends StatelessWidget {
                   onPressed: () => onAddDefaultWorks(items),
                   child: const Text('Добавить типовые работы по площади'),
                 ),
+                if (openings.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                FilledButton.tonal(
+                  onPressed: () => onAddSlopeEbbFromOpenings(items),
+                  child: const Text('В смету: откосы и отливы (сводно)'),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonal(
+                  onPressed: () => onAddSlopeEbbPerOpening(items),
+                  child: const Text('В смету: откосы и отливы по каждому проёму'),
+                ),
+                ],
                 if (workLines.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   const Text(
@@ -809,6 +1233,12 @@ class _WorkPricesPanel extends StatelessWidget {
                     (MapEntry<int, EstimateLine> entry) => _EstimateLineTile(
                       index: entry.key + 1,
                       line: entry.value,
+                      onEditWorkNote: entry.value.item.category == 'work'
+                          ? onEditWorkLineNote
+                          : null,
+                      onEditWorkDiscount: entry.value.item.category == 'work'
+                          ? onEditWorkLineDiscount
+                          : null,
                     ),
                   ),
                 ],
@@ -1208,8 +1638,278 @@ class _OpeningRow extends StatelessWidget {
               ),
             ],
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+            child: Text(
+              opening.perimeterLm > 0
+                  ? 'Откосы: ${_formatOpeningLm(opening.perimeterLm)} п.м. • Отлив: ${opening.isWindow ? '1 шт' : '—'}'
+                  : 'Укажите ширину и высоту — для расчёта откосов по этому проёму',
+              style: const TextStyle(
+                color: Color(0xFF757575),
+                fontSize: AppTextSizes.s28,
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+String _formatOpeningLm(double value) {
+  if (value == value.roundToDouble()) {
+    return value.toStringAsFixed(0);
+  }
+  return value.toStringAsFixed(2);
+}
+
+class _WorkLineNoteDialog extends StatefulWidget {
+  const _WorkLineNoteDialog({required this.initialText});
+
+  final String initialText;
+
+  @override
+  State<_WorkLineNoteDialog> createState() => _WorkLineNoteDialogState();
+}
+
+class _WorkLineNoteDialogState extends State<_WorkLineNoteDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialText);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Примечание к работе'),
+      content: TextField(
+        controller: _controller,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          hintText: 'Например, доступ, условия монтажа…',
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Сохранить'),
+        ),
+      ],
+    );
+  }
+}
+
+class _WorkLineDiscountDialog extends StatefulWidget {
+  const _WorkLineDiscountDialog({
+    required this.initialPercent,
+    required this.initialFixedRub,
+  });
+
+  final double initialPercent;
+  final double initialFixedRub;
+
+  @override
+  State<_WorkLineDiscountDialog> createState() =>
+      _WorkLineDiscountDialogState();
+}
+
+class _WorkLineDiscountDialogState extends State<_WorkLineDiscountDialog> {
+  late final TextEditingController _percentController;
+  late final TextEditingController _fixedController;
+
+  @override
+  void initState() {
+    super.initState();
+    _percentController = TextEditingController(
+      text: widget.initialPercent > 0
+          ? widget.initialPercent.toString().replaceAll('.', ',')
+          : '',
+    );
+    _fixedController = TextEditingController(
+      text: widget.initialFixedRub > 0
+          ? widget.initialFixedRub.toStringAsFixed(0)
+          : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _percentController.dispose();
+    _fixedController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final double pct = double.tryParse(
+          _percentController.text.replaceAll(',', '.').trim(),
+        ) ??
+        0;
+    final double fix = double.tryParse(
+          _fixedController.text.replaceAll(',', '.').trim(),
+        ) ??
+        0;
+    Navigator.of(context).pop(<String, double>{
+      'pct': pct.clamp(0, 100),
+      'fix': fix < 0 ? 0 : fix,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Скидка на работу'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Сначала применяется процент к сумме строки, затем вычитается фиксированная сумма (как в приложении).',
+            style: TextStyle(fontSize: AppTextSizes.s28, color: Color(0xFF757575)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _percentController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Процент, %',
+              hintText: '0',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _fixedController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Фиксированно, ₽',
+              hintText: '0',
+            ),
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Сохранить'),
+        ),
+      ],
+    );
+  }
+}
+
+class _EstimateDiscountDialog extends StatefulWidget {
+  const _EstimateDiscountDialog({
+    required this.initialPercent,
+    required this.initialFixedRub,
+  });
+
+  final double initialPercent;
+  final double initialFixedRub;
+
+  @override
+  State<_EstimateDiscountDialog> createState() =>
+      _EstimateDiscountDialogState();
+}
+
+class _EstimateDiscountDialogState extends State<_EstimateDiscountDialog> {
+  late final TextEditingController _percentController;
+  late final TextEditingController _fixedController;
+
+  @override
+  void initState() {
+    super.initState();
+    _percentController = TextEditingController(
+      text: widget.initialPercent > 0
+          ? widget.initialPercent.toString().replaceAll('.', ',')
+          : '',
+    );
+    _fixedController = TextEditingController(
+      text: widget.initialFixedRub > 0
+          ? widget.initialFixedRub.toStringAsFixed(0)
+          : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _percentController.dispose();
+    _fixedController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final double pct = double.tryParse(
+          _percentController.text.replaceAll(',', '.').trim(),
+        ) ??
+        0;
+    final double fix = double.tryParse(
+          _fixedController.text.replaceAll(',', '.').trim(),
+        ) ??
+        0;
+    Navigator.of(context).pop(<String, double>{
+      'pct': pct.clamp(0, 100),
+      'fix': fix < 0 ? 0 : fix,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Скидка на смету'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Процент и фикс применяются к итогу после скидок по строкам.',
+            style: TextStyle(fontSize: AppTextSizes.s28, color: Color(0xFF757575)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _percentController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Процент, %',
+              hintText: '0',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _fixedController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Фиксированно, ₽',
+              hintText: '0',
+            ),
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Сохранить'),
+        ),
+      ],
     );
   }
 }
@@ -1241,6 +1941,14 @@ class _SavedEstimatesBlock extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final SavedEstimate latest = estimates.first;
+        final String? latestDiscount = EstimateShareText.estimateDiscountCaption(
+          lineItemsSum: latest.items.fold<double>(
+            0,
+            (double s, SavedEstimateItem i) => s + i.totalPrice,
+          ),
+          totalAmount: latest.totalAmount,
+          calculation: latest.calculation,
+        );
         return InkWell(
           onTap: () => onOpenList(estimates),
           child: Container(
@@ -1250,15 +1958,33 @@ class _SavedEstimatesBlock extends StatelessWidget {
               borderRadius: BorderRadius.all(Radius.circular(6)),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Icon(Icons.save_outlined, color: AppColors.headingText),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Сохранено: ${estimates.length}. Последняя: ${latest.title}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextTheme.body32,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Сохранено: ${estimates.length}. Последняя: ${latest.title}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.body32,
+                      ),
+                      if (latestDiscount != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          latestDiscount,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF8D6E63),
+                            fontSize: AppTextSizes.s28,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1328,7 +2054,7 @@ class _SavedEstimatesSheet extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (BuildContext context, int index) {
                     final SavedEstimate estimate = estimates[index];
-                    final bool isSubmitted = estimate.status == 'submitted';
+                    final bool isSubmitted = estimate.hasEstimateRequest;
                     final bool isSubmitting =
                         submittingEstimateId == estimate.id;
                     return Container(
@@ -1362,12 +2088,31 @@ class _SavedEstimatesSheet extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${estimate.itemsCount} поз. • ${_statusLabel(estimate.status)}',
+                            '${estimate.itemsCount} поз. • ${_savedEstimateListSubtitle(estimate)}',
                             style: const TextStyle(
                               color: Color(0xFF757575),
                               fontSize: AppTextSizes.s28,
                             ),
                           ),
+                          if (EstimateShareText.estimateDiscountCaption(
+                                lineItemsSum: estimate.items.fold<double>(
+                                  0,
+                                  (double s, SavedEstimateItem i) =>
+                                      s + i.totalPrice,
+                                ),
+                                totalAmount: estimate.totalAmount,
+                                calculation: estimate.calculation,
+                              )
+                              case final String discountLine) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              discountLine,
+                              style: const TextStyle(
+                                color: Color(0xFF8D6E63),
+                                fontSize: AppTextSizes.s28,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -1414,16 +2159,29 @@ class _SavedEstimateDetailsSheet extends StatelessWidget {
     required this.money,
     required this.isSubmitting,
     required this.onSubmit,
+    required this.onShare,
+    required this.onSharePdf,
   });
 
   final SavedEstimate estimate;
   final String Function(double value) money;
   final bool isSubmitting;
   final VoidCallback onSubmit;
+  final VoidCallback onShare;
+  final VoidCallback onSharePdf;
 
   @override
   Widget build(BuildContext context) {
-    final bool isSubmitted = estimate.status == 'submitted';
+    final bool isSubmitted = estimate.hasEstimateRequest;
+    final double linesSum = estimate.items.fold<double>(
+      0,
+      (double s, SavedEstimateItem i) => s + i.totalPrice,
+    );
+    final String? discountCaption = EstimateShareText.estimateDiscountCaption(
+      lineItemsSum: linesSum,
+      totalAmount: estimate.totalAmount,
+      calculation: estimate.calculation,
+    );
     return SafeArea(
       child: DraggableScrollableSheet(
         expand: false,
@@ -1447,6 +2205,16 @@ class _SavedEstimateDetailsSheet extends StatelessWidget {
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Поделиться текстом',
+                      onPressed: onShare,
+                      icon: const Icon(Icons.share_outlined),
+                    ),
+                    IconButton(
+                      tooltip: 'Поделиться PDF',
+                      onPressed: onSharePdf,
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                    ),
+                    IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close),
                     ),
@@ -1455,9 +2223,24 @@ class _SavedEstimateDetailsSheet extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  '${_statusLabel(estimate.status)} • ${money(estimate.totalAmount)}',
-                  style: AppTextTheme.body32,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      '${_savedEstimateListSubtitle(estimate)} • ${money(estimate.totalAmount)}',
+                      style: AppTextTheme.body32,
+                    ),
+                    if (discountCaption != null) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        discountCaption,
+                        style: const TextStyle(
+                          color: Color(0xFF8D6E63),
+                          fontSize: AppTextSizes.s28,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -1525,6 +2308,16 @@ class _SavedEstimateDetailsSheet extends StatelessWidget {
   }
 }
 
+String _savedEstimateListSubtitle(SavedEstimate estimate) {
+  if (estimate.hasEstimateRequest) {
+    return _statusLabel('submitted');
+  }
+  if (estimate.status == 'submitted') {
+    return 'заявка не на сервере — отправьте снова';
+  }
+  return _statusLabel(estimate.status);
+}
+
 String _statusLabel(String status) {
   switch (status) {
     case 'submitted':
@@ -1574,10 +2367,17 @@ class _TabButton extends StatelessWidget {
 }
 
 class _EstimateLineTile extends StatelessWidget {
-  const _EstimateLineTile({required this.index, required this.line});
+  const _EstimateLineTile({
+    required this.index,
+    required this.line,
+    this.onEditWorkNote,
+    this.onEditWorkDiscount,
+  });
 
   final int index;
   final EstimateLine line;
+  final ValueChanged<EstimateLine>? onEditWorkNote;
+  final ValueChanged<EstimateLine>? onEditWorkDiscount;
 
   String _money(double value) {
     if (value == 0) {
@@ -1623,17 +2423,42 @@ class _EstimateLineTile extends StatelessWidget {
                         fontSize: AppTextSizes.s28,
                       ),
                     ),
+                    if ('${line.item.raw['line_note'] ?? ''}'.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Примечание: ${line.item.raw['line_note']}',
+                          style: AppTextTheme.body32.copyWith(
+                            color: const Color(0xFF5D4037),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                _money(line.total),
-                style: const TextStyle(
-                  color: AppColors.headingText,
-                  fontSize: AppTextSizes.s32,
-                  fontWeight: AppTextWeights.medium,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (line.hasLineDiscount) ...[
+                    Text(
+                      _money(line.subtotal),
+                      style: AppTextTheme.body33.copyWith(
+                        decoration: TextDecoration.lineThrough,
+                        color: const Color(0xFF9E9E9E),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  Text(
+                    _money(line.total),
+                    style: const TextStyle(
+                      color: AppColors.headingText,
+                      fontSize: AppTextSizes.s32,
+                      fontWeight: AppTextWeights.medium,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1641,6 +2466,20 @@ class _EstimateLineTile extends StatelessWidget {
           Row(
             children: [
               Text('Цена: ${_money(line.price)}', style: AppTextTheme.body33),
+              if (onEditWorkNote != null) ...[
+                IconButton(
+                  tooltip: 'Примечание',
+                  onPressed: () => onEditWorkNote!(line),
+                  icon: const Icon(Icons.edit_note_outlined, size: 22),
+                ),
+              ],
+              if (onEditWorkDiscount != null) ...[
+                IconButton(
+                  tooltip: 'Скидка на работу',
+                  onPressed: () => onEditWorkDiscount!(line),
+                  icon: const Icon(Icons.percent_outlined, size: 22),
+                ),
+              ],
               const Spacer(),
               IconButton(
                 onPressed: () {

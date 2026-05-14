@@ -39,7 +39,7 @@ class RegisterResult {
 /// Для существующего пользователя ответ содержит token,
 /// для нового: `{ "is_new_user": true }`.
 ///
-/// `POST .../register.php` — JSON с телефоном, кодом, ФИО и email;
+/// `POST .../register.php` — JSON с телефоном, кодом, ФИО, email и `accepted_user_agreement: true`;
 /// создаёт пользователя и возвращает token.
 abstract final class AuthApiService {
   AuthApiService._();
@@ -210,6 +210,7 @@ abstract final class AuthApiService {
     required String firstName,
     required String middleName,
     required String email,
+    required bool acceptedUserAgreement,
   }) async {
     if (ApiConfig.baseUrl.trim().isEmpty) {
       return const RegisterResult(
@@ -225,13 +226,14 @@ abstract final class AuthApiService {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: jsonEncode(<String, String>{
+            body: jsonEncode(<String, Object?>{
               'phone': phone,
               'code': code,
               'last_name': lastName,
               'first_name': firstName,
               'middle_name': middleName,
               'email': email,
+              'accepted_user_agreement': acceptedUserAgreement,
             }),
           )
           .timeout(const Duration(seconds: 30));

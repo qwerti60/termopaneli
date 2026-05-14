@@ -23,6 +23,28 @@ class CatalogItem {
   final String? price;
   final String? unit;
   final Map<String, dynamic> raw;
+
+  /// Копия позиции с подмешанным `raw` (например `line_instance`, `line_note`).
+  CatalogItem withMergedRaw({
+    String? title,
+    String? subtitle,
+    Map<String, dynamic>? rawPatch,
+  }) {
+    final Map<String, dynamic> merged = Map<String, dynamic>.from(raw);
+    if (rawPatch != null) {
+      merged.addAll(rawPatch);
+    }
+    return CatalogItem(
+      title: title ?? this.title,
+      category: category,
+      subtitle: subtitle ?? this.subtitle,
+      categoryLabel: categoryLabel,
+      imageUrl: imageUrl,
+      price: price,
+      unit: unit,
+      raw: merged,
+    );
+  }
 }
 
 class CatalogCategory {

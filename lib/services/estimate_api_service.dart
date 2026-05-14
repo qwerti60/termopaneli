@@ -42,6 +42,10 @@ class SavedEstimate {
   final Map<String, dynamic> calculation;
   final String? requestStatus;
   final String? requestComment;
+
+  /// Строка в `estimate_requests` (то, что отдаёт админ-API). Без неё смета в админке не появится,
+  /// даже если в БД `estimates.status = submitted`.
+  bool get hasEstimateRequest => (requestStatus ?? '').trim().isNotEmpty;
 }
 
 class SavedEstimateItem {
@@ -109,6 +113,13 @@ abstract final class EstimateApiService {
     }
 
     try {
+      final Map<String, Object?> payload = <String, Object?>{
+        'title': title,
+        'items': lines.map(_lineToJson).toList(growable: false),
+      };
+      if (calculation != null) {
+        payload['calculation'] = calculation;
+      }
       final http.Response res = await http
           .post(
             _uri('/api/v1/estimates/save.php', token: token),
@@ -117,12 +128,7 @@ abstract final class EstimateApiService {
               'Accept': 'application/json',
               'Authorization': 'Bearer $token',
             },
-            body: jsonEncode(<String, Object?>{
-              'title': title,
-              'items': lines.map(_lineToJson).toList(growable: false),
-              if (calculation case final Map<String, Object?> value)
-                'calculation': value,
-            }),
+            body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 30));
 
@@ -207,8 +213,23 @@ abstract final class EstimateApiService {
           .timeout(const Duration(seconds: 30));
 
       final dynamic data = _decodeBody(res.body);
-      if (res.statusCode == 200 && data is Map<String, dynamic>) {
-        return SaveEstimateResult(ok: true, estimateId: estimateId);
+      if (res.statusCode == 200) {
+        if (data is Map) {
+          final Map<String, dynamic> map = Map<String, dynamic>.from(
+            data as Map,
+          );
+          if (map['ok'] == true) {
+            return SaveEstimateResult(ok: true, estimateId: estimateId);
+          }
+          return SaveEstimateResult(
+            ok: false,
+            errorMessage: _messageFrom(map) ?? 'Ошибка ответа сервера',
+          );
+        }
+        return const SaveEstimateResult(
+          ok: false,
+          errorMessage: 'Некорректный ответ сервера',
+        );
       }
       return SaveEstimateResult(
         ok: false,

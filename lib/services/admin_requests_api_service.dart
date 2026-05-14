@@ -8,6 +8,40 @@ String? _adminJsonOptional(dynamic value) {
   return text.isEmpty ? null : text;
 }
 
+Map<String, dynamic>? _adminParseJsonObject(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<String, dynamic>();
+  }
+  if (value is String && value.trim().isNotEmpty) {
+    try {
+      final Object? d = jsonDecode(value);
+      if (d is Map<String, dynamic>) {
+        return d;
+      }
+      if (d is Map) {
+        return d.cast<String, dynamic>();
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+double _adminReadDouble(Object? v) {
+  if (v == null) {
+    return 0;
+  }
+  if (v is num) {
+    return v.toDouble();
+  }
+  return double.tryParse(v.toString().replaceAll(',', '.')) ?? 0;
+}
+
 class AdminRequestItem {
   const AdminRequestItem({
     required this.name,
@@ -47,6 +81,8 @@ class AdminEstimateRequest {
     required this.totalAmount,
     required this.createdAt,
     required this.items,
+    required this.lineItemsSum,
+    required this.estimateCalculation,
     this.contactName,
     this.contactPhone,
     this.contactEmail,
@@ -66,6 +102,17 @@ class AdminEstimateRequest {
   final double totalAmount;
   final String createdAt;
   final List<AdminRequestItem> items;
+  /// Сумма `total_price` по строкам сметы (до скидки на всю смету).
+  final double lineItemsSum;
+  /// Блок `calculation` из `estimates.raw_json` (как в `save.php`).
+  final Map<String, dynamic> estimateCalculation;
+
+  double get estimateDiscountPercent =>
+      _adminReadDouble(estimateCalculation['estimate_discount_percent']);
+
+  double get estimateDiscountRub =>
+      _adminReadDouble(estimateCalculation['estimate_discount_rub']);
+
   final String? contactName;
   final String? contactPhone;
   final String? contactEmail;
@@ -76,10 +123,37 @@ class AdminEstimateRequest {
   final String? userMiddleName;
   final String? userEmail;
 
+  bool get hasEstimateLevelDiscount =>
+      estimateDiscountPercent > 0 || estimateDiscountRub > 0;
+
+  bool get lineSumDiffersFromTotal =>
+      (lineItemsSum - totalAmount).abs() > 0.5;
+
+  bool get shouldShowEstimateDiscount =>
+      hasEstimateLevelDiscount || lineSumDiffersFromTotal;
+
   factory AdminEstimateRequest.fromJson(Map<String, dynamic> json) {
     final List<dynamic> rawItems = json['items'] is List
         ? json['items'] as List
         : const [];
+    final List<AdminRequestItem> items = rawItems
+        .whereType<Map>()
+        .map(
+          (Map<dynamic, dynamic> row) =>
+              AdminRequestItem.fromJson(row.cast<String, dynamic>()),
+        )
+        .toList(growable: false);
+    final double lineItemsSum = items.fold<double>(
+      0,
+      (double s, AdminRequestItem i) => s + i.totalPrice,
+    );
+    final Map<String, dynamic>? estRaw =
+        _adminParseJsonObject(json['estimate_raw_json']);
+    Map<String, dynamic> calc = const <String, dynamic>{};
+    final Object? calcAny = estRaw?['calculation'];
+    if (calcAny is Map) {
+      calc = calcAny.cast<String, dynamic>();
+    }
     return AdminEstimateRequest(
       id: int.tryParse('${json['id'] ?? 0}') ?? 0,
       estimateId: int.tryParse('${json['estimate_id'] ?? 0}') ?? 0,
@@ -88,6 +162,8 @@ class AdminEstimateRequest {
       estimateTitle: '${json['estimate_title'] ?? 'Смета'}',
       totalAmount: double.tryParse('${json['total_amount'] ?? 0}') ?? 0,
       createdAt: '${json['created_at'] ?? ''}',
+      lineItemsSum: lineItemsSum,
+      estimateCalculation: calc,
       contactName: _adminJsonOptional(json['contact_name']),
       contactPhone: _adminJsonOptional(json['contact_phone']),
       contactEmail: _adminJsonOptional(json['contact_email']),
@@ -97,13 +173,7 @@ class AdminEstimateRequest {
       userFirstName: _adminJsonOptional(json['first_name']),
       userMiddleName: _adminJsonOptional(json['middle_name']),
       userEmail: _adminJsonOptional(json['email']),
-      items: rawItems
-          .whereType<Map>()
-          .map(
-            (Map<dynamic, dynamic> row) =>
-                AdminRequestItem.fromJson(row.cast<String, dynamic>()),
-          )
-          .toList(growable: false),
+      items: items,
     );
   }
 }

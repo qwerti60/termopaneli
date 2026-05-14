@@ -63,9 +63,13 @@ try {
     if ($title === '') {
         $title = 'Смета';
     }
-    $calculation = isset($data['calculation']) && is_array($data['calculation'])
-        ? $data['calculation']
-        : null;
+    $calculation = $data['calculation'] ?? null;
+    if (is_string($calculation)) {
+        $decoded = json_decode($calculation, true);
+        $calculation = is_array($decoded) ? $decoded : null;
+    } elseif (!is_array($calculation)) {
+        $calculation = null;
+    }
     $estimateRawJson = $calculation === null
         ? null
         : json_encode(['calculation' => $calculation], JSON_UNESCAPED_UNICODE);
@@ -83,7 +87,14 @@ try {
     $pdo = tp_pdo();
     $pdo->beginTransaction();
 
-    $total = 0.0;
+    $estPct = 0.0;
+    $estFixRub = 0.0;
+    if (is_array($calculation)) {
+        $estPct = (float) ($calculation['estimate_discount_percent'] ?? 0);
+        $estFixRub = (float) ($calculation['estimate_discount_rub'] ?? 0);
+    }
+
+    $sumAfterLineDiscounts = 0.0;
     $normalizedItems = [];
     foreach ($items as $item) {
         if (!is_array($item)) {
@@ -91,8 +102,24 @@ try {
         }
         $quantity = max(1, (int) ($item['quantity'] ?? 1));
         $unitPrice = max(0.0, (float) ($item['unit_price'] ?? 0));
-        $lineTotal = $quantity * $unitPrice;
-        $total += $lineTotal;
+        $lineSubtotal = $quantity * $unitPrice;
+        $raw = $item['raw'] ?? [];
+        if (!is_array($raw)) {
+            $raw = [];
+        }
+        $linePct = (float) ($raw['line_discount_percent'] ?? 0);
+        $lineFixRub = (float) ($raw['line_discount_fixed_rub'] ?? 0);
+        $lineTotal = $lineSubtotal;
+        if ($linePct > 0) {
+            $lineTotal *= 1 - min(100.0, max(0.0, $linePct)) / 100;
+        }
+        if ($lineFixRub > 0) {
+            $lineTotal -= $lineFixRub;
+        }
+        if ($lineTotal < 0) {
+            $lineTotal = 0.0;
+        }
+        $sumAfterLineDiscounts += $lineTotal;
         $normalizedItems[] = [
             'item_key' => trim((string) ($item['key'] ?? '')),
             'category' => trim((string) ($item['category'] ?? '')),
@@ -107,6 +134,14 @@ try {
             'total_price' => $lineTotal,
             'raw_json' => json_encode($item['raw'] ?? $item, JSON_UNESCAPED_UNICODE),
         ];
+    }
+
+    $total = $sumAfterLineDiscounts;
+    if ($estPct > 0) {
+        $total *= 1 - min(100.0, max(0.0, $estPct)) / 100;
+    }
+    if ($estFixRub > 0) {
+        $total = max(0.0, $total - $estFixRub);
     }
 
     if (count($normalizedItems) === 0) {

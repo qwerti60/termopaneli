@@ -10,7 +10,8 @@ declare(strict_types=1);
  *   "last_name":"Иванов",
  *   "first_name":"Иван",
  *   "middle_name":"Иванович",
- *   "email":"ivan@example.com"
+ *   "email":"ivan@example.com",
+ *   "accepted_user_agreement": true
  * }
  *
  * Создаёт запись в user_profiles только при полном наборе данных.
@@ -36,6 +37,16 @@ $lastName = trim((string) ($data['last_name'] ?? ''));
 $firstName = trim((string) ($data['first_name'] ?? ''));
 $middleName = trim((string) ($data['middle_name'] ?? ''));
 $email = trim((string) ($data['email'] ?? ''));
+$rawAccepted = $data['accepted_user_agreement'] ?? false;
+$acceptedAgreement = $rawAccepted === true
+    || $rawAccepted === 1
+    || $rawAccepted === '1'
+    || $rawAccepted === 'true';
+
+if (!$acceptedAgreement) {
+    tp_json_response(400, ['message' => 'Необходимо принять пользовательское соглашение']);
+    exit;
+}
 
 if ($phone === null || strlen($code) !== 6) {
     tp_json_response(400, ['message' => 'Укажите телефон и 6-значный код']);

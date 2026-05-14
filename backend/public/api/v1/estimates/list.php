@@ -63,13 +63,23 @@ try {
          ORDER BY id DESC
          LIMIT 1'
     );
+    /** Без строки estimate_requests админка не видит заявку — снимаем ложный submitted. */
+    $fixOrphanSubmittedSt = $pdo->prepare(
+        'UPDATE estimates SET status = ?, updated_at = NOW()
+         WHERE id = ? AND user_id = ? AND status = ?'
+    );
 
     foreach ($estimates as &$estimate) {
         $itemSt->execute([(int) $estimate['id']]);
         $estimate['items'] = $itemSt->fetchAll();
         $requestSt->execute([(int) $estimate['id'], $userId]);
         $request = $requestSt->fetch();
+        $requestSt->closeCursor();
         $estimate['request'] = $request !== false ? $request : null;
+        if (($estimate['status'] ?? '') === 'submitted' && $estimate['request'] === null) {
+            $fixOrphanSubmittedSt->execute(['draft', (int) $estimate['id'], $userId, 'submitted']);
+            $estimate['status'] = 'draft';
+        }
     }
     unset($estimate);
 

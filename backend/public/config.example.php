@@ -32,4 +32,32 @@ return [
      * На сервере задайте длинную случайную строку и передавайте ее как Bearer token.
      */
     'admin_api_token' => '',
+    /**
+     * Реквизиты и ссылки для шапки PDF (переопределите поля при необходимости).
+     * Отдаются через GET .../settings/company-for-pdf.php и внутри GET .../settings/app-manifest.php.
+     */
+    'company_pdf' => [
+        // 'legal_name' => 'ООО «ЭКОСТРОЙЛИДЕР»',
+        // 'inn' => '7727316867',
+        // 'phone' => '+7 925 480-36-16',
+        // 'address' => '...',
+        // 'area_note' => '...',
+        // 'tagline' => '...',
+        // 'website' => 'https://термованель.москва',
+        // 'user_agreement_url' => 'https://.../tp_api/agreement.html',
+        // Необязательно: готовые строки для PDF (иначе приложение добавит «ИНН» / «Тел.»)
+        // 'inn_line' => 'ИНН 7727316867',
+        // 'phone_line' => 'Тел. +7 925 480-36-16',
+    ],
+    /**
+     * Доп. поля для GET .../settings/app-manifest.php (необязательно).
+     */
+    'app_manifest' => [
+        // 'privacy_policy_url' => 'https://.../privacy.html',
+    ],
+    /**
+     * true — в JSON при 500 в поле message возвращается текст исключения (только для отладки).
+     * В продакшене оставьте false.
+     */
+    'debug' => false,
 ];

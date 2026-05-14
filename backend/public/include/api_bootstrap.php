@@ -72,6 +72,7 @@ function tp_pdo(): PDO
 function tp_json_response(int $status, array $payload): void
 {
     http_response_code($status);
+    header('Cache-Control: no-store, private, max-age=0');
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
 }
