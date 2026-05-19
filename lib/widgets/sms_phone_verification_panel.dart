@@ -67,6 +67,11 @@ class _SmsPhoneVerificationPanelState extends State<SmsPhoneVerificationPanel> {
     if (value == null || value.trim().isEmpty) {
       return 'Введите номер телефона';
     }
+    final String digits = value.replaceAll(RegExp(r'\D'), '');
+    // Пока набирают меньше 9 цифр — не показываем «некорректный номер», чтобы не мешать вводу.
+    if (digits.length < 9) {
+      return null;
+    }
     if (_normalizePhone(value) == null) {
       return 'Введите корректный номер РФ';
     }

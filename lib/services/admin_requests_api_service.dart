@@ -183,18 +183,25 @@ class AdminRequestListResult {
     required this.ok,
     this.items = const [],
     this.errorMessage,
+    this.unauthorized = false,
   });
 
   final bool ok;
   final List<AdminEstimateRequest> items;
   final String? errorMessage;
+  final bool unauthorized;
 }
 
 class AdminRequestStatusResult {
-  const AdminRequestStatusResult({required this.ok, this.errorMessage});
+  const AdminRequestStatusResult({
+    required this.ok,
+    this.errorMessage,
+    this.unauthorized = false,
+  });
 
   final bool ok;
   final String? errorMessage;
+  final bool unauthorized;
 }
 
 abstract final class AdminRequestsApiService {
@@ -267,6 +274,7 @@ abstract final class AdminRequestsApiService {
       }
       return AdminRequestListResult(
         ok: false,
+        unauthorized: res.statusCode == 401,
         errorMessage: _messageFrom(data) ?? 'Ошибка ${res.statusCode}',
       );
     } catch (e) {
@@ -316,6 +324,7 @@ abstract final class AdminRequestsApiService {
       }
       return AdminRequestStatusResult(
         ok: false,
+        unauthorized: res.statusCode == 401,
         errorMessage: _messageFrom(data) ?? 'Ошибка ${res.statusCode}',
       );
     } catch (e) {

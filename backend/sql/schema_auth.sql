@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   first_name VARCHAR(100) NOT NULL,
   middle_name VARCHAR(100) NOT NULL,
   email VARCHAR(255) NOT NULL,
+  is_pro TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = активна подписка PRO',
   token CHAR(64) NULL DEFAULT NULL,
   token_updated_at DATETIME NULL DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

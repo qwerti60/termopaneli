@@ -177,19 +177,17 @@ abstract final class EstimatePdfExport {
     if (note.isNotEmpty) {
       out.add(pw.Text('Примечание: $note', style: _body(font)));
     }
-    if (line.item.category == 'work') {
-      final double pct = _readDouble(line.item.raw['line_discount_percent']);
-      final double fix = _readDouble(line.item.raw['line_discount_fixed_rub']);
-      if (pct > 0 || fix > 0) {
-        final List<String> bits = <String>[];
-        if (pct > 0) {
-          bits.add('${pct.toStringAsFixed(0)}%');
-        }
-        if (fix > 0) {
-          bits.add(EstimateShareText.money(fix));
-        }
-        out.add(pw.Text('Скидка на работу: ${bits.join(' + ')}', style: _body(font)));
+    final double pct = _readDouble(line.item.raw['line_discount_percent']);
+    final double fix = _readDouble(line.item.raw['line_discount_fixed_rub']);
+    if (pct > 0 || fix > 0) {
+      final List<String> bits = <String>[];
+      if (pct > 0) {
+        bits.add('${pct.toStringAsFixed(0)}%');
       }
+      if (fix > 0) {
+        bits.add(EstimateShareText.money(fix));
+      }
+      out.add(pw.Text('Скидка на позицию: ${bits.join(' + ')}', style: _body(font)));
     }
     return out;
   }
@@ -212,19 +210,17 @@ abstract final class EstimatePdfExport {
     if (note.isNotEmpty) {
       out.add(pw.Text('Примечание: $note', style: _body(font)));
     }
-    if (item.category == 'work') {
-      final double pct = _readDouble(item.raw['line_discount_percent']);
-      final double fix = _readDouble(item.raw['line_discount_fixed_rub']);
-      if (pct > 0 || fix > 0) {
-        final List<String> bits = <String>[];
-        if (pct > 0) {
-          bits.add('${pct.toStringAsFixed(0)}%');
-        }
-        if (fix > 0) {
-          bits.add(EstimateShareText.money(fix));
-        }
-        out.add(pw.Text('Скидка на работу: ${bits.join(' + ')}', style: _body(font)));
+    final double pct = _readDouble(item.raw['line_discount_percent']);
+    final double fix = _readDouble(item.raw['line_discount_fixed_rub']);
+    if (pct > 0 || fix > 0) {
+      final List<String> bits = <String>[];
+      if (pct > 0) {
+        bits.add('${pct.toStringAsFixed(0)}%');
       }
+      if (fix > 0) {
+        bits.add(EstimateShareText.money(fix));
+      }
+      out.add(pw.Text('Скидка на позицию: ${bits.join(' + ')}', style: _body(font)));
     }
     if (item.sku != null && item.sku!.trim().isNotEmpty) {
       out.add(pw.Text('арт. ${item.sku}', style: _body(font)));

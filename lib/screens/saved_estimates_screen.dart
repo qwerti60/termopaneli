@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:termopaneli_app/auth/auth_flow.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
@@ -22,6 +23,7 @@ class SavedEstimatesScreen extends StatefulWidget {
 class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
   late Future<List<SavedEstimate>> _future;
   int? _submittingEstimateId;
+  int? _deletingEstimateId;
   bool _showRequests = false;
 
   @override
@@ -45,6 +47,16 @@ class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
 
   Future<void> _submit(SavedEstimate estimate, {String comment = ''}) async {
     if (_submittingEstimateId != null) {
+      return;
+    }
+    final bool ok = await AuthFlow.ensureLoggedIn(
+      context,
+      title: 'Вход для заявки',
+      body:
+          'Отправить смету как заявку можно после входа в аккаунт. Каталог и '
+          'сборка сметы доступны без регистрации.',
+    );
+    if (!ok || !mounted) {
       return;
     }
     setState(() => _submittingEstimateId = estimate.id);
@@ -72,6 +84,71 @@ class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
     );
   }
 
+  Future<void> _delete(
+    SavedEstimate estimate, {
+    VoidCallback? onAfterSuccess,
+  }) async {
+    if (_deletingEstimateId != null) {
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Удалить смету?'),
+        content: const Text(
+          'Смета будет удалена с сервера вместе с позициями и связанной заявкой, если она была. Отменить это нельзя.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade800),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final bool ok = await AuthFlow.ensureLoggedIn(
+      context,
+      title: 'Вход',
+      body: 'Удалить сохранённую смету можно после входа в аккаунт.',
+    );
+    if (!ok || !mounted) {
+      return;
+    }
+    setState(() => _deletingEstimateId = estimate.id);
+    final SaveEstimateResult result = await EstimateApiService.deleteSaved(
+      estimate.id,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _deletingEstimateId = null;
+      if (result.ok) {
+        _future = EstimateApiService.fetchSaved();
+      }
+    });
+    if (result.ok) {
+      onAfterSuccess?.call();
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.ok
+              ? 'Смета удалена'
+              : (result.errorMessage ?? 'Не удалось удалить смету'),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showSubmitDialog(SavedEstimate estimate) async {
     final String? comment = await showModalBottomSheet<String>(
       context: context,
@@ -93,12 +170,21 @@ class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.pageBackground,
-      builder: (BuildContext context) {
+      builder: (BuildContext sheetContext) {
         return _SavedEstimateDetails(
           estimate: estimate,
           money: _money,
           isSubmitting: _submittingEstimateId == estimate.id,
+          isDeleting: _deletingEstimateId == estimate.id,
           onSubmit: () => _showSubmitDialog(estimate),
+          onDelete: () => _delete(
+            estimate,
+            onAfterSuccess: () {
+              if (Navigator.of(sheetContext).canPop()) {
+                Navigator.of(sheetContext).pop();
+              }
+            },
+          ),
         );
       },
     );
@@ -226,15 +312,19 @@ class _SavedEstimatesScreenState extends State<SavedEstimatesScreen> {
                           final bool isSubmitted = estimate.hasEstimateRequest;
                           final bool isSubmitting =
                               _submittingEstimateId == estimate.id;
+                          final bool isDeleting =
+                              _deletingEstimateId == estimate.id;
                           return _SavedEstimateCard(
                             estimate: estimate,
                             money: _money,
                             isSubmitted: isSubmitted,
                             isSubmitting: isSubmitting,
+                            isDeleting: isDeleting,
                             showRequestActions: !_showRequests,
                             onOpen: () => _openDetails(estimate),
                             onEdit: () => _editEstimate(estimate),
                             onSubmit: () => _showSubmitDialog(estimate),
+                            onDelete: () => _delete(estimate),
                           );
                         },
                       );
@@ -382,20 +472,24 @@ class _SavedEstimateCard extends StatelessWidget {
     required this.money,
     required this.isSubmitted,
     required this.isSubmitting,
+    required this.isDeleting,
     required this.showRequestActions,
     required this.onOpen,
     required this.onEdit,
     required this.onSubmit,
+    required this.onDelete,
   });
 
   final SavedEstimate estimate;
   final String Function(double value) money;
   final bool isSubmitted;
   final bool isSubmitting;
+  final bool isDeleting;
   final bool showRequestActions;
   final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onSubmit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -427,7 +521,7 @@ class _SavedEstimateCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${estimate.itemsCount} поз. • ${_statusLabel(estimate)}',
+            '${estimate.itemsCount} поз. • ${estimate.statusSummary}',
             style: const TextStyle(
               color: Color(0xFF757575),
               fontSize: AppTextSizes.s28,
@@ -471,7 +565,9 @@ class _SavedEstimateCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
-                    onPressed: isSubmitted || isSubmitting ? null : onSubmit,
+                    onPressed: isSubmitted || isSubmitting || isDeleting
+                        ? null
+                        : onSubmit,
                     child: Text(
                       isSubmitted
                           ? 'Заявка'
@@ -484,6 +580,12 @@ class _SavedEstimateCard extends StatelessWidget {
               ],
             ],
           ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: isDeleting || isSubmitting ? null : onDelete,
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade800),
+            child: Text(isDeleting ? 'Удаление…' : 'Удалить смету'),
+          ),
         ],
       ),
     );
@@ -495,13 +597,17 @@ class _SavedEstimateDetails extends StatelessWidget {
     required this.estimate,
     required this.money,
     required this.isSubmitting,
+    required this.isDeleting,
     required this.onSubmit,
+    required this.onDelete,
   });
 
   final SavedEstimate estimate;
   final String Function(double value) money;
   final bool isSubmitting;
+  final bool isDeleting;
   final VoidCallback onSubmit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -543,7 +649,7 @@ class _SavedEstimateDetails extends StatelessWidget {
                       onPressed: () async {
                         final String text = EstimateShareText.fromSaved(
                           estimate: estimate,
-                          statusLine: _statusLabel(estimate),
+                          statusLine: estimate.statusSummary,
                           requestComment: estimate.requestComment,
                         );
                         await SharePlus.instance.share(
@@ -563,7 +669,7 @@ class _SavedEstimateDetails extends StatelessWidget {
                           final Uint8List bytes =
                               await EstimatePdfExport.buildFromSaved(
                             estimate: estimate,
-                            statusLine: _statusLabel(estimate),
+                            statusLine: estimate.statusSummary,
                             company: company,
                             requestComment: estimate.requestComment,
                           );
@@ -605,7 +711,7 @@ class _SavedEstimateDetails extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     Text(
-                      '${_statusLabel(estimate)} • ${money(estimate.totalAmount)}',
+                      '${estimate.statusSummary} • ${money(estimate.totalAmount)}',
                       style: AppTextTheme.body32,
                     ),
                     if (discountCaption != null) ...<Widget>[
@@ -673,15 +779,29 @@ class _SavedEstimateDetails extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: FilledButton(
-                  onPressed: isSubmitted || isSubmitting ? null : onSubmit,
+                  onPressed: isSubmitted || isSubmitting || isDeleting
+                      ? null
+                      : onSubmit,
                   child: Text(
                     isSubmitted
                         ? 'Уже отправлена как заявка'
                         : isSubmitting
                         ? 'Отправка...'
                         : 'Отправить как заявку',
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: TextButton(
+                  onPressed: isDeleting || isSubmitting ? null : onDelete,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red.shade800,
+                  ),
+                  child: Text(
+                    isDeleting ? 'Удаление…' : 'Удалить смету',
                   ),
                 ),
               ),
@@ -773,38 +893,5 @@ class _SavedEmptyState extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-String _statusLabel(SavedEstimate estimate) {
-  if (estimate.hasEstimateRequest) {
-    switch (estimate.requestStatus) {
-      case 'new':
-      case null:
-      case '':
-        return 'заявка новая';
-      case 'in_work':
-        return 'заявка в работе';
-      case 'need_info':
-        return 'требуется уточнение';
-      case 'done':
-        return 'заявка обработана';
-      case 'closed':
-        return 'заявка закрыта';
-      case 'cancelled':
-        return 'заявка отменена';
-      default:
-        return 'заявка: ${estimate.requestStatus}';
-    }
-  }
-  if (estimate.status == 'submitted') {
-    return 'заявка не создана на сервере — отправьте снова';
-  }
-  switch (estimate.status) {
-    case 'draft':
-    case '':
-      return 'черновик';
-    default:
-      return estimate.status;
   }
 }

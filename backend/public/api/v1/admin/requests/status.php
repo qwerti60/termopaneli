@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * POST JSON — смена статуса заявки администратором.
- * Заголовок: Authorization: Bearer <admin_api_token>
+ * Заголовок: Authorization: Bearer <admin_api_token из config ИЛИ token из POST .../admin/auth/login.php>
  * Тело:
  * {
  *   "request_id": 123,
@@ -11,26 +11,16 @@ declare(strict_types=1);
  * }
  */
 require_once dirname(__DIR__, 4) . '/include/api_bootstrap.php';
-
-function tp_admin_request_token(): ?string
-{
-    return tp_bearer_token();
-}
-
-function tp_admin_authorized(): bool
-{
-    $cfg = tp_config();
-    $expected = trim((string) ($cfg['admin_api_token'] ?? ''));
-    $actual = tp_admin_request_token();
-    return $expected !== '' && $actual !== null && hash_equals($expected, $actual);
-}
+require_once dirname(__DIR__, 4) . '/include/admin_auth.php';
+require_once dirname(__DIR__, 4) . '/include/admin_requests_service.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     tp_json_response(405, ['error' => 'Method Not Allowed']);
     exit;
 }
 
-if (!tp_admin_authorized()) {
+$pdo = tp_pdo();
+if (!tp_admin_authorized($pdo)) {
     tp_json_response(401, ['error' => 'Недействительный admin token']);
     exit;
 }
@@ -44,37 +34,14 @@ try {
     }
 
     $requestId = (int) ($data['request_id'] ?? 0);
-    if ($requestId <= 0) {
-        tp_json_response(400, ['message' => 'Некорректная заявка']);
-        exit;
-    }
-
-    $allowedStatuses = ['new', 'in_work', 'need_info', 'done', 'closed', 'cancelled'];
     $status = trim((string) ($data['status'] ?? ''));
-    if (!in_array($status, $allowedStatuses, true)) {
-        tp_json_response(400, ['message' => 'Некорректный статус заявки']);
+
+    $upd = tp_admin_update_request_status($pdo, $requestId, $status);
+    if ($upd !== true) {
+        $code = $upd === 'Заявка не найдена' ? 404 : 400;
+        tp_json_response($code, ['message' => $upd]);
         exit;
     }
-
-    $pdo = tp_pdo();
-    $checkSt = $pdo->prepare(
-        'SELECT id
-         FROM estimate_requests
-         WHERE id = ?
-         LIMIT 1'
-    );
-    $checkSt->execute([$requestId]);
-    if ($checkSt->fetch() === false) {
-        tp_json_response(404, ['message' => 'Заявка не найдена']);
-        exit;
-    }
-
-    $st = $pdo->prepare(
-        'UPDATE estimate_requests
-         SET status = ?, updated_at = NOW()
-         WHERE id = ?'
-    );
-    $st->execute([$status, $requestId]);
 
     tp_json_response(200, [
         'ok' => true,

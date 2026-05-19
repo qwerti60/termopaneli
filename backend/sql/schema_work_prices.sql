@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS work_prices (
   sku VARCHAR(64) NOT NULL,
   name VARCHAR(255) NOT NULL,
   description TEXT NULL,
+  image_path VARCHAR(255) NULL DEFAULT NULL,
   unit VARCHAR(50) NOT NULL DEFAULT 'шт',
   price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   calc_rule VARCHAR(50) NOT NULL DEFAULT 'manual',

@@ -50,5 +50,19 @@ run_smsc_local.sh
 # Локальный PHP-конфиг с доступами к БД (не коммитить)
 backend/public/config.php
 
+# PHP Composer (backend): закоммичены composer.json / composer.lock; vendor собирается на сервере
+backend/vendor/
+backend/composer.phar
+
 # Случайный архив каталога settings (не часть репозитория)
 backend/public/api/v1/settings.zip
+
+# Локальные zip и установщик Composer (не в репозитории)
+composer-setup.php
+backend/vendor.zip
+backend/public/**/*.zip
+backend/scripts.zip
+
+# Загрузки картинок из веб-админки (см. catalog_uploads/)
+backend/public/catalog_uploads/*
+!backend/public/catalog_uploads/.gitkeep

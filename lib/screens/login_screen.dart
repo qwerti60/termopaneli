@@ -8,8 +8,16 @@ class LoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool canPop = ModalRoute.of(context)?.canPop ?? false;
     return Scaffold(
       backgroundColor: AppColors.pageBackground,
+      appBar: canPop
+          ? AppBar(
+              backgroundColor: AppColors.pageBackground,
+              elevation: 0,
+              foregroundColor: AppColors.headingText,
+            )
+          : null,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),

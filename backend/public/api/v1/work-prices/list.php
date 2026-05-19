@@ -36,6 +36,7 @@ function tp_normalize_work_price_row(array $row): array
         'name' => (string) ($row['name'] ?? ''),
         'title' => (string) ($row['name'] ?? ''),
         'description' => (string) ($row['description'] ?? ''),
+        'image_path' => (string) ($row['image_path'] ?? ''),
         'unit' => (string) ($row['unit'] ?? 'шт'),
         'price' => $row['price'] ?? 0,
         'calc_rule' => (string) ($row['calc_rule'] ?? 'manual'),

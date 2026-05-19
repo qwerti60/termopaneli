@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/screens/catalog_screen.dart';
-import 'package:termopaneli_app/screens/login_screen.dart';
 import 'package:termopaneli_app/services/auth_api_service.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 
-/// При старте: токен + валидная сессия → каталог; иначе экран входа.
+/// При старте: открываем каталог. Если сохранён токен — проверяем его через
+/// [AuthApiService.validateSession] (недействительный токен снимается при ответе 401 с сервера).
+/// Вход по желанию — с экрана «Профиль» или при сохранении сметы / заявке (см. [AuthFlow.ensureLoggedIn]).
 class AuthSplashScreen extends StatefulWidget {
   const AuthSplashScreen({super.key});
 
@@ -26,15 +27,14 @@ class _AuthSplashScreenState extends State<AuthSplashScreen> {
     final String? token = await SessionService.getToken();
     debugPrint('AuthSplash: token exists = ${token != null && token.isNotEmpty}');
     if (token != null && token.isNotEmpty) {
-      final bool sessionOk = await AuthApiService.validateSession(token);
-      debugPrint('AuthSplash: session valid = $sessionOk');
-      if (sessionOk) {
-        return const CatalogScreen();
+      try {
+        final bool sessionOk = await AuthApiService.validateSession(token);
+        debugPrint('AuthSplash: session valid = $sessionOk');
+      } catch (e, st) {
+        debugPrint('AuthSplash: validateSession error $e $st');
       }
-      // Не очищаем токен автоматически: при временной сетевой ошибке
-      // иначе теряется сессия и пользователь вынужден входить заново.
     }
-    return const LoginScreen();
+    return const CatalogScreen();
   }
 
   @override
@@ -50,7 +50,7 @@ class _AuthSplashScreenState extends State<AuthSplashScreen> {
             ),
           );
         }
-        return snapshot.data ?? const LoginScreen();
+        return snapshot.data ?? const CatalogScreen();
       },
     );
   }

@@ -14,17 +14,165 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  late final Future<List<CatalogItem>> _catalogFuture;
+  late Future<List<CatalogItem>> _catalogFuture;
+  String _selectedMaterial = 'all';
+  String _selectedColor = 'all';
+  String _selectedThickness = 'all';
 
   @override
   void initState() {
     super.initState();
-    _catalogFuture = CatalogApiService.fetchCatalog(limit: 500);
+    _catalogFuture = _loadCatalog();
     _searchController.addListener(_onSearchChanged);
+  }
+
+  Future<List<CatalogItem>> _loadCatalog() {
+    return CatalogApiService.fetchCatalog(
+      limit: 500,
+      category: 'all',
+      material: _selectedMaterial == 'all' ? null : _selectedMaterial,
+      color: _selectedColor == 'all' ? null : _selectedColor,
+      thickness: _selectedThickness == 'all' ? null : _selectedThickness,
+    );
   }
 
   void _onSearchChanged() {
     setState(() {});
+  }
+
+  void _retryCatalog() {
+    setState(() {
+      _catalogFuture = _loadCatalog();
+    });
+  }
+
+  bool get _hasFilters =>
+      _selectedMaterial != 'all' ||
+      _selectedColor != 'all' ||
+      _selectedThickness != 'all';
+
+  Future<void> _showFilterSheet(List<CatalogItem> items) async {
+    final List<String> materials = _uniqueValues(items, <String>['material']);
+    final List<String> colors = _uniqueValues(items, <String>[
+      'color',
+      'color_description',
+    ]);
+    final List<String> thicknesses =
+        CatalogApiService.uniqueThicknessFilterTokens(items);
+    String material = _selectedMaterial;
+    String color = _selectedColor;
+    String thickness = _selectedThickness;
+    final bool showThickness =
+        thicknesses.isNotEmpty || thickness != 'all';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('Фильтр', style: AppTextTheme.sectionTitle),
+                    const SizedBox(height: 14),
+                    _SearchDropdownFilter(
+                      label: 'Материал',
+                      value: material,
+                      values: materials,
+                      onChanged: (String value) {
+                        setSheetState(() => material = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _SearchDropdownFilter(
+                      label: 'Цвет',
+                      value: color,
+                      values: colors,
+                      onChanged: (String value) {
+                        setSheetState(() => color = value);
+                      },
+                    ),
+                    if (showThickness) ...[
+                      const SizedBox(height: 12),
+                      _SearchDropdownFilter(
+                        label: 'Толщина, мм',
+                        value: thickness,
+                        values: thicknesses,
+                        compareOptions:
+                            CatalogApiService.compareThicknessFilterTokens,
+                        onChanged: (String value) {
+                          setSheetState(() => thickness = value);
+                        },
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedMaterial = 'all';
+                                _selectedColor = 'all';
+                                _selectedThickness = 'all';
+                                _catalogFuture = _loadCatalog();
+                              });
+                              Navigator.pop(context);
+                            },
+                            child: const Text('Сбросить'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedMaterial = material;
+                                _selectedColor = color;
+                                _selectedThickness = thickness;
+                                _catalogFuture = _loadCatalog();
+                              });
+                              Navigator.pop(context);
+                            },
+                            child: const Text('Применить'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<String> _uniqueValues(List<CatalogItem> items, List<String> keys) {
+    final Set<String> values = <String>{};
+    for (final CatalogItem item in items) {
+      final String value = _fieldValue(item, keys);
+      if (value.isNotEmpty) {
+        values.add(value);
+      }
+    }
+    final List<String> sorted = values.toList()..sort();
+    return sorted;
+  }
+
+  Future<void> _openFilterSheet() async {
+    try {
+      final List<CatalogItem> items = await _catalogFuture;
+      if (!mounted) {
+        return;
+      }
+      await _showFilterSheet(items);
+    } catch (_) {}
   }
 
   @override
@@ -125,33 +273,60 @@ class _SearchScreenState extends State<SearchScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              TextFormField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.pageBackground,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(4),
+                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(4),
+                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade400),
+                        ),
+                        suffixIcon: IconButton(
+                          onPressed: () => FocusScope.of(context).unfocus(),
+                          icon: const Icon(
+                            Icons.search,
+                            color: Color(0xFF7E7E7E),
+                          ),
+                        ),
+                        hintText: 'Название, артикул, цвет...',
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF7E7E7E),
+                        fontSize: AppTextSizes.s36,
+                      ),
+                    ),
                   ),
-                  filled: true,
-                  fillColor: AppColors.pageBackground,
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: const BorderRadius.all(Radius.circular(4)),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Фильтр по материалу, цвету и толщине',
+                    onPressed: _openFilterSheet,
+                    icon: Badge(
+                      isLabelVisible: _hasFilters,
+                      smallSize: 8,
+                      child: const Icon(
+                        Icons.filter_alt_outlined,
+                        color: AppColors.headingText,
+                      ),
+                    ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: const BorderRadius.all(Radius.circular(4)),
-                    borderSide: BorderSide(color: Colors.grey.shade400),
-                  ),
-                  suffixIcon: IconButton(
-                    onPressed: () => FocusScope.of(context).unfocus(),
-                    icon: const Icon(Icons.search, color: Color(0xFF7E7E7E)),
-                  ),
-                  hintText: 'Название, артикул, цвет...',
-                ),
-                style: const TextStyle(
-                  color: Color(0xFF7E7E7E),
-                  fontSize: AppTextSizes.s36,
-                ),
+                ],
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -168,20 +343,41 @@ class _SearchScreenState extends State<SearchScreen> {
                           );
                         }
                         if (snapshot.hasError) {
-                          return const Center(
-                            child: Text(
-                              'Не удалось загрузить каталог для поиска',
-                              style: AppTextTheme.body32,
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const Text(
+                                    'Не удалось загрузить каталог для поиска',
+                                    textAlign: TextAlign.center,
+                                    style: AppTextTheme.body32,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  FilledButton.tonal(
+                                    onPressed: _retryCatalog,
+                                    child: const Text('Повторить'),
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         }
                         final String query = _searchController.text.trim();
                         if (query.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'Введите название, артикул, цвет или материал',
-                              textAlign: TextAlign.center,
-                              style: AppTextTheme.body32,
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                _hasFilters
+                                    ? 'Введите название, артикул, цвет или материал.\n'
+                                        'Активен фильтр API — список уже сужен по материалу, цвету и при необходимости толщине (как в каталоге).'
+                                    : 'Введите название, артикул, цвет или материал.\n'
+                                        'При необходимости сузьте выборку кнопкой фильтра.',
+                                textAlign: TextAlign.center,
+                                style: AppTextTheme.body32,
+                              ),
                             ),
                           );
                         }
@@ -189,10 +385,17 @@ class _SearchScreenState extends State<SearchScreen> {
                           snapshot.data ?? const <CatalogItem>[],
                         );
                         if (results.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'Ничего не найдено',
-                              style: AppTextTheme.body32,
+                          final String extra = _hasFilters
+                              ? '\n\nПопробуйте сбросить фильтр (материал, цвет, толщина) или изменить запрос.'
+                              : '';
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'Ничего не найдено по запросу «$query».$extra',
+                                textAlign: TextAlign.center,
+                                style: AppTextTheme.body32,
+                              ),
                             ),
                           );
                         }
@@ -218,6 +421,64 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SearchDropdownFilter extends StatelessWidget {
+  const _SearchDropdownFilter({
+    required this.label,
+    required this.value,
+    required this.values,
+    required this.onChanged,
+    this.compareOptions,
+  });
+
+  final String label;
+  final String value;
+  final List<String> values;
+  final ValueChanged<String> onChanged;
+  final Comparator<String>? compareOptions;
+
+  @override
+  Widget build(BuildContext context) {
+    // Reserve `all` for «Все»; duplicate `DropdownMenuItem.value` breaks the dropdown assert.
+    final Set<String> optionSet = <String>{
+      for (final String v in values)
+        if (v.isNotEmpty && v != 'all') v,
+      if (value.isNotEmpty && value != 'all') value,
+    };
+    final List<String> options = optionSet.toList();
+    if (compareOptions != null) {
+      options.sort(compareOptions);
+    } else {
+      options.sort();
+    }
+    final String initialDropdownValue =
+        value.isEmpty || value == 'all' ? 'all' : value;
+
+    final List<DropdownMenuItem<String>> items = <DropdownMenuItem<String>>[
+      const DropdownMenuItem<String>(
+        value: 'all',
+        child: Text('Все', overflow: TextOverflow.ellipsis),
+      ),
+      ...options.map(
+        (String v) => DropdownMenuItem<String>(
+          value: v,
+          child: Text(v, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ),
+    ];
+    return DropdownButtonFormField<String>(
+      initialValue: initialDropdownValue,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: items,
+      onChanged: (String? v) {
+        if (v != null) {
+          onChanged(v);
+        }
+      },
     );
   }
 }

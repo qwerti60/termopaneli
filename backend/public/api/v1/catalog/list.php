@@ -4,9 +4,14 @@ declare(strict_types=1);
 /**
  * GET — список панелей и дополнительных материалов.
  * Параметры:
- * - category=all|panel|slope|corner|grout|ebb|soffit|plinth|fastener|consumable
+ * - category=all|panel|slope|corner|grout|ebb|soffit|soffit_lining|front_overhang|plinth|fastener|consumable
  * - limit=100
  * - offset=0
+ * - material=… — необязательно; для строк из catalog_materials: точное совпадение поля material (после trim)
+ * - color=… — необязательно; для catalog_materials: точное совпадение поля color (после trim)
+ * - thickness=… — необязательно; для catalog_materials: числовое совпадение с thickness_mm,
+ *   либо (если thickness_mm NULL) с width_mm для категорий slope, ebb, corner
+ *   Фильтры material/color/thickness к запросу панелей (thermo_panel_catalog) не применяются.
  *
  * Ответ:
  * {
@@ -32,6 +37,35 @@ if ($limit > 500) {
 }
 if ($offset < 0) {
     $offset = 0;
+}
+
+$filterMaterial = isset($_GET['material']) ? trim((string) $_GET['material']) : '';
+$filterColor = isset($_GET['color']) ? trim((string) $_GET['color']) : '';
+$filterThicknessRaw = isset($_GET['thickness']) ? trim((string) $_GET['thickness']) : '';
+$matLen = function_exists('mb_strlen')
+    ? mb_strlen($filterMaterial, 'UTF-8')
+    : strlen($filterMaterial);
+$colLen = function_exists('mb_strlen')
+    ? mb_strlen($filterColor, 'UTF-8')
+    : strlen($filterColor);
+$thLen = function_exists('mb_strlen')
+    ? mb_strlen($filterThicknessRaw, 'UTF-8')
+    : strlen($filterThicknessRaw);
+if ($matLen > 100) {
+    $filterMaterial = '';
+}
+if ($colLen > 100) {
+    $filterColor = '';
+}
+if ($thLen > 32) {
+    $filterThicknessRaw = '';
+}
+$filterThicknessMm = null;
+if ($filterThicknessRaw !== '' && is_numeric($filterThicknessRaw)) {
+    $ft = (float) $filterThicknessRaw;
+    if ($ft > 0) {
+        $filterThicknessMm = $ft;
+    }
 }
 
 function tp_catalog_pick(array $row, array $keys, string $fallback = ''): string
@@ -138,6 +172,26 @@ try {
             if ($category !== 'all' && $category !== '') {
                 $sql .= ' AND category = :category';
                 $params['category'] = $category;
+            }
+            if ($filterMaterial !== '') {
+                $sql .= ' AND TRIM(material) = :filter_material';
+                $params['filter_material'] = $filterMaterial;
+            }
+            if ($filterColor !== '') {
+                $sql .= ' AND TRIM(color) = :filter_color';
+                $params['filter_color'] = $filterColor;
+            }
+            if ($filterThicknessMm !== null) {
+                $sql .= ' AND (
+                    (thickness_mm IS NOT NULL AND thickness_mm = :filter_thickness_mm)
+                    OR (
+                        thickness_mm IS NULL
+                        AND width_mm = :filter_thickness_mm_w
+                        AND category IN (\'slope\', \'ebb\', \'corner\')
+                    )
+                )';
+                $params['filter_thickness_mm'] = $filterThicknessMm;
+                $params['filter_thickness_mm_w'] = $filterThicknessMm;
             }
             $sql .= ' ORDER BY sort_order, name LIMIT :limit OFFSET :offset';
             $st = $pdo->prepare($sql);

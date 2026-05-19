@@ -25,26 +25,7 @@ declare(strict_types=1);
  * }
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
-
-function tp_estimates_auth_user_id(): ?int
-{
-    if (function_exists('tp_auth_user_id')) {
-        return tp_auth_user_id();
-    }
-
-    $token = tp_bearer_token();
-    if ($token === null || $token === '') {
-        return null;
-    }
-    $pdo = tp_pdo();
-    $st = $pdo->prepare('SELECT id FROM user_profiles WHERE token = ? LIMIT 1');
-    $st->execute([$token]);
-    $row = $st->fetch();
-    if ($row === false) {
-        return null;
-    }
-    return (int) $row['id'];
-}
+require_once dirname(__DIR__, 3) . '/include/estimates_user_auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     tp_json_response(405, ['error' => 'Method Not Allowed']);

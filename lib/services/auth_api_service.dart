@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:termopaneli_app/config/api_config.dart';
+import 'package:termopaneli_app/services/session_service.dart';
 
 class PhoneVerifyResult {
   const PhoneVerifyResult({
@@ -31,7 +32,8 @@ class RegisterResult {
 
 /// PHP-скрипты в репозитории: `backend/public/api/v1/auth/*.php`
 ///
-/// `GET .../session.php` — заголовок `Authorization: Bearer <token>`, ответ 200 при валидной сессии.
+/// `GET .../session.php` — заголовок `Authorization: Bearer <token>`, ответ 200 при валидной сессии;
+/// 401 — сессия недействительна (при вызове из [validateSession] локальный токен удаляется).
 ///
 /// `POST .../request-sms.php` — JSON `{ "phone": "79991234567" }`, отправка OTP (smsc в config.php).
 ///
@@ -54,6 +56,8 @@ abstract final class AuthApiService {
   }
 
   /// Возвращает true, если токен принят сервером и пользователь существует.
+  /// При ответе **401** сохранённый токен удаляется (сессия недействительна).
+  /// Сетевые ошибки и 5xx: токен **не** трогаем — при следующем запуске или открытии профиля повторим проверку.
   static Future<bool> validateSession(String token) async {
     if (token.isEmpty) {
       return false;
@@ -71,6 +75,10 @@ abstract final class AuthApiService {
             },
           )
           .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 401) {
+        await SessionService.clearToken();
+        return false;
+      }
       return res.statusCode == 200;
     } catch (_) {
       return false;

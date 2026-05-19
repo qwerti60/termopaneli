@@ -30,6 +30,7 @@ class SavedEstimate {
     this.calculation = const <String, dynamic>{},
     this.requestStatus,
     this.requestComment,
+    this.requestCreatedAt,
   });
 
   final int id;
@@ -42,10 +43,45 @@ class SavedEstimate {
   final Map<String, dynamic> calculation;
   final String? requestStatus;
   final String? requestComment;
+  final String? requestCreatedAt;
 
   /// Строка в `estimate_requests` (то, что отдаёт админ-API). Без неё смета в админке не появится,
   /// даже если в БД `estimates.status = submitted`.
   bool get hasEstimateRequest => (requestStatus ?? '').trim().isNotEmpty;
+
+  /// Краткая строка для списка смет / заявок (черновик, статус заявки).
+  String get statusSummary {
+    if (hasEstimateRequest) {
+      switch (requestStatus) {
+        case 'new':
+        case null:
+        case '':
+          return 'заявка новая';
+        case 'in_work':
+          return 'заявка в работе';
+        case 'need_info':
+          return 'требуется уточнение';
+        case 'done':
+          return 'заявка обработана';
+        case 'closed':
+          return 'заявка закрыта';
+        case 'cancelled':
+          return 'заявка отменена';
+        default:
+          return 'заявка: $requestStatus';
+      }
+    }
+    if (status == 'submitted') {
+      return 'заявка не создана на сервере — отправьте снова';
+    }
+    switch (status) {
+      case 'draft':
+      case '':
+        return 'черновик';
+      default:
+        return status;
+    }
+  }
 }
 
 class SavedEstimateItem {
@@ -215,9 +251,67 @@ abstract final class EstimateApiService {
       final dynamic data = _decodeBody(res.body);
       if (res.statusCode == 200) {
         if (data is Map) {
-          final Map<String, dynamic> map = Map<String, dynamic>.from(
-            data as Map,
+          final Map<String, dynamic> map = Map<String, dynamic>.from(data);
+          if (map['ok'] == true) {
+            return SaveEstimateResult(ok: true, estimateId: estimateId);
+          }
+          return SaveEstimateResult(
+            ok: false,
+            errorMessage: _messageFrom(map) ?? 'Ошибка ответа сервера',
           );
+        }
+        return const SaveEstimateResult(
+          ok: false,
+          errorMessage: 'Некорректный ответ сервера',
+        );
+      }
+      return SaveEstimateResult(
+        ok: false,
+        errorMessage: _messageFrom(data) ?? 'Ошибка ${res.statusCode}',
+      );
+    } catch (e) {
+      return SaveEstimateResult(
+        ok: false,
+        errorMessage: 'Нет связи с сервером: $e',
+      );
+    }
+  }
+
+  /// Удаляет сохранённую смету текущего пользователя на сервере (позиции и заявка снимаются каскадом).
+  static Future<SaveEstimateResult> deleteSaved(int estimateId) async {
+    final String? token = await SessionService.getToken();
+    if (token == null || token.isEmpty) {
+      return const SaveEstimateResult(
+        ok: false,
+        errorMessage: 'Нужно войти в аккаунт',
+      );
+    }
+    if (estimateId <= 0) {
+      return const SaveEstimateResult(
+        ok: false,
+        errorMessage: 'Некорректная смета',
+      );
+    }
+
+    try {
+      final http.Response res = await http
+          .post(
+            _uri('/api/v1/estimates/delete.php', token: token),
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(<String, Object?>{
+              'estimate_id': estimateId,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      final dynamic data = _decodeBody(res.body);
+      if (res.statusCode == 200) {
+        if (data is Map) {
+          final Map<String, dynamic> map = Map<String, dynamic>.from(data);
           if (map['ok'] == true) {
             return SaveEstimateResult(ok: true, estimateId: estimateId);
           }
@@ -283,6 +377,7 @@ abstract final class EstimateApiService {
       calculation: calculation,
       requestStatus: _requestFieldFromJson(row, 'status'),
       requestComment: _requestCommentFromJson(row),
+      requestCreatedAt: _requestFieldFromJson(row, 'created_at'),
     );
   }
 

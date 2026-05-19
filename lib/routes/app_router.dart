@@ -8,18 +8,23 @@ import 'package:termopaneli_app/screens/editing_section_screen.dart';
 import 'package:termopaneli_app/screens/home_screen.dart';
 import 'package:termopaneli_app/screens/login_screen.dart';
 import 'package:termopaneli_app/screens/my_data_screen.dart';
+import 'package:termopaneli_app/screens/my_estimate_requests_screen.dart';
 import 'package:termopaneli_app/screens/personal_data_confirm_screen.dart';
 import 'package:termopaneli_app/screens/personal_data_screen.dart';
 import 'package:termopaneli_app/screens/profile_screen.dart';
 import 'package:termopaneli_app/screens/product_details_screen.dart';
 import 'package:termopaneli_app/screens/registration_screen.dart';
+import 'package:termopaneli_app/screens/admin_login_screen.dart';
 import 'package:termopaneli_app/screens/admin_requests_screen.dart';
 import 'package:termopaneli_app/screens/saved_estimates_screen.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
 import 'package:termopaneli_app/services/estimate_api_service.dart';
+import 'package:termopaneli_app/services/profile_api_service.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 import 'package:termopaneli_app/screens/search_screen.dart';
 import 'package:termopaneli_app/screens/subscription_screen.dart';
+import 'package:termopaneli_app/screens/panel_fit_screen.dart';
+import 'package:termopaneli_app/routes/panel_fit_args.dart';
 import 'package:termopaneli_app/screens/window_slopes_screen.dart';
 
 /// Централизованная генерация маршрутов и навигация по имени.
@@ -101,6 +106,16 @@ abstract final class AppRouter {
           builder: (_) => const SavedEstimatesScreen(),
           settings: settings,
         );
+      case AppRoutes.myEstimateRequests:
+        return MaterialPageRoute<void>(
+          builder: (_) => const MyEstimateRequestsScreen(),
+          settings: settings,
+        );
+      case AppRoutes.adminLogin:
+        return MaterialPageRoute<void>(
+          builder: (_) => const AdminLoginScreen(),
+          settings: settings,
+        );
       case AppRoutes.adminRequests:
         return MaterialPageRoute<void>(
           builder: (_) => const AdminRequestsScreen(),
@@ -115,6 +130,18 @@ abstract final class AppRouter {
         final CatalogItem? item = args is CatalogItem ? args : null;
         return MaterialPageRoute<void>(
           builder: (_) => ProductDetailsScreen(item: item),
+          settings: settings,
+        );
+      case AppRoutes.panelFit:
+        final PanelFitArgs? panelFitArgs = switch (args) {
+          final PanelFitArgs a => a,
+          _ => null,
+        };
+        return MaterialPageRoute<void>(
+          builder: (_) => PanelFitScreen(
+            initialTextureUrl: panelFitArgs?.textureImageUrl,
+            initialPanelTitle: panelFitArgs?.panelTitle,
+          ),
           settings: settings,
         );
       default:
@@ -199,6 +226,23 @@ abstract final class AppRouter {
     );
   }
 
+  /// Выход из аккаунта: [SessionService.clearToken] и сброс стека на каталог (гостевой режим, без экрана входа).
+  /// Дальнейший вход — по запросу при сохранении сметы на сервер или отправке заявки.
+  static Future<T?> logoutToGuestCatalog<T extends Object?>(
+    BuildContext context,
+  ) async {
+    await ProfileApiService.logoutRemote();
+    await SessionService.clearToken();
+    if (!context.mounted) {
+      return null;
+    }
+    return Navigator.pushNamedAndRemoveUntil<T>(
+      context,
+      AppRoutes.catalog,
+      (_) => false,
+    );
+  }
+
   static Future<T?> pushSearch<T extends Object?>(BuildContext context) {
     return Navigator.pushNamed<T>(context, AppRoutes.search);
   }
@@ -224,7 +268,32 @@ abstract final class AppRouter {
     return Navigator.pushNamed<T>(context, AppRoutes.savedEstimates);
   }
 
-  static Future<T?> pushAdminRequests<T extends Object?>(BuildContext context) {
+  static Future<T?> pushMyEstimateRequests<T extends Object?>(
+    BuildContext context,
+  ) {
+    return Navigator.pushNamed<T>(context, AppRoutes.myEstimateRequests);
+  }
+
+  static Future<T?> pushAdminRequests<T extends Object?>(BuildContext context) async {
+    final String? bearer = await SessionService.getAdminApiToken();
+    if (!context.mounted) {
+      return null;
+    }
+    if (bearer == null || bearer.trim().isEmpty) {
+      final Object? ok = await Navigator.pushNamed<Object?>(
+        context,
+        AppRoutes.adminLogin,
+      );
+      if (!context.mounted) {
+        return null;
+      }
+      if (ok != true) {
+        return null;
+      }
+    }
+    if (!context.mounted) {
+      return null;
+    }
     return Navigator.pushNamed<T>(context, AppRoutes.adminRequests);
   }
 
@@ -243,10 +312,33 @@ abstract final class AppRouter {
     );
   }
 
+  static Future<T?> pushPanelFit<T extends Object?>(
+    BuildContext context, {
+    String? textureImageUrl,
+    String? panelTitle,
+  }) {
+    final String trimmedUrl = (textureImageUrl ?? '').trim();
+    final String? trimmedTitle = panelTitle?.trim();
+    final Object? arguments = trimmedUrl.isNotEmpty
+        ? PanelFitArgs(
+            textureImageUrl: trimmedUrl,
+            panelTitle: (trimmedTitle != null && trimmedTitle.isNotEmpty)
+                ? trimmedTitle
+                : null,
+          )
+        : null;
+    return Navigator.pushNamed<T>(
+      context,
+      AppRoutes.panelFit,
+      arguments: arguments,
+    );
+  }
+
+  /// Открывает экран входа. Сохранённый токен **не** сбрасывается: после успешного входа он перезапишется,
+  /// при отмене сессия остаётся (в т.ч. если раньше была ошибка сети при загрузке профиля).
   static Future<T?> pushLoginReplacing<T extends Object?>(
     BuildContext context,
   ) async {
-    await SessionService.clearToken();
     if (!context.mounted) {
       return null;
     }

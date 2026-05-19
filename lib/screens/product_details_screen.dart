@@ -20,6 +20,99 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   bool _showCharacteristics = true;
   int _quantity = 1;
 
+  static const String _defaultThermoPanelDescription =
+      'Фасадные термопанели с клинкерной плиткой подходят для '
+      'наружной отделки дома, обеспечивают долговечность и '
+      'теплоизоляцию.';
+
+  String _descriptionBody() {
+    final CatalogItem? item = widget.item;
+    if (item == null) {
+      return _defaultThermoPanelDescription;
+    }
+    final String? fromRaw = item.raw['description']?.toString().trim();
+    if (fromRaw != null && fromRaw.isNotEmpty) {
+      return fromRaw;
+    }
+    if (item.category != 'panel') {
+      final String sub = item.subtitle?.trim() ?? '';
+      if (sub.isNotEmpty) {
+        return sub;
+      }
+      return 'Описание уточняйте у менеджера.';
+    }
+    return _defaultThermoPanelDescription;
+  }
+
+  String? _formatMmField(String key) {
+    final dynamic v = widget.item?.raw[key];
+    if (v == null) {
+      return null;
+    }
+    if (v is num) {
+      if (v == 0) {
+        return null;
+      }
+      final double d = v.toDouble();
+      if (d == d.roundToDouble()) {
+        return '${d.round()}';
+      }
+      return d.toString();
+    }
+    final String s = v.toString().trim();
+    if (s.isEmpty || s == 'null') {
+      return null;
+    }
+    return s;
+  }
+
+  String? _dimensionHint() {
+    final CatalogItem? item = widget.item;
+    if (item == null) {
+      return null;
+    }
+    return CatalogApiService.catalogMaterialEstimateDimensionHint(item);
+  }
+
+  Future<void> _onAddToEstimate() async {
+    final CatalogItem item = widget.item!;
+    final String? hint =
+        CatalogApiService.catalogMaterialEstimateDimensionHint(item);
+    if (hint != null && mounted) {
+      final bool? go = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext ctx) => AlertDialog(
+          title: const Text('Проверьте размеры'),
+          content: Text(hint),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Добавить в смету'),
+            ),
+          ],
+        ),
+      );
+      if (go != true || !mounted) {
+        return;
+      }
+    }
+    EstimateService.addItem(
+      item,
+      quantity: _quantity,
+    );
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Добавлено в смету')),
+    );
+    AppRouter.pushEstimate(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -144,6 +237,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   widget.item?.categoryLabel ?? 'Термопанели',
                 ),
                 _SpecRow(
+                  'Артикул',
+                  _rawValue('sku', fallback: 'Не указан'),
+                ),
+                _SpecRow(
                   'Материал',
                   _rawValue('material', fallback: 'Термопанель'),
                 ),
@@ -161,15 +258,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   'Фактура',
                   _rawValue('texture', fallback: 'Не указана'),
                 ),
+                if (_formatMmField('width_mm') != null)
+                  _SpecRow('Ширина, мм', _formatMmField('width_mm')!),
+                if (_formatMmField('length_mm') != null)
+                  _SpecRow('Длина, мм', _formatMmField('length_mm')!),
+                if (_formatMmField('thickness_mm') != null)
+                  _SpecRow('Толщина, мм', _formatMmField('thickness_mm')!),
                 _SpecRow('Ед. измерения', widget.item?.unit ?? 'шт'),
               ] else ...[
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Text(
-                    'Фасадные термопанели с клинкерной плиткой подходят для '
-                    'наружной отделки дома, обеспечивают долговечность и '
-                    'теплоизоляцию.',
-                    style: TextStyle(
+                    _descriptionBody(),
+                    style: const TextStyle(
                       color: AppColors.headingText,
                       fontSize: AppTextSizes.s32,
                       height: AppLineHeights.normal,
@@ -204,34 +305,90 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: TextButton(
-                  onPressed: widget.item == null
-                      ? null
-                      : () {
-                          EstimateService.addItem(
-                            widget.item!,
-                            quantity: _quantity,
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Добавлено в смету')),
-                          );
-                          AppRouter.pushEstimate(context);
-                        },
-                  style: TextButton.styleFrom(
-                    fixedSize: const Size(double.infinity, 44),
-                    foregroundColor: AppColors.primaryButtonText,
-                    backgroundColor: AppColors.primaryButtonBackground,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(6)),
+              Builder(
+                builder: (BuildContext context) {
+                  final String? dimHint = _dimensionHint();
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (dimHint != null) ...[
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8E1),
+                              borderRadius:
+                                  const BorderRadius.all(Radius.circular(8)),
+                              border: Border.all(color: const Color(0xFFFFC107)),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.info_outline,
+                                    color: Color(0xFF8D6E00),
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      dimHint,
+                                      style: const TextStyle(
+                                        color: Color(0xFF5D4037),
+                                        fontSize: AppTextSizes.s30,
+                                        height: AppLineHeights.normal,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        if (widget.item != null &&
+                            widget.item!.category == 'panel' &&
+                            (widget.item!.imageUrl ?? '').isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                AppRouter.pushPanelFit(
+                                  context,
+                                  textureImageUrl: widget.item!.imageUrl,
+                                  panelTitle: widget.item!.title,
+                                );
+                              },
+                              icon: const Icon(Icons.layers_outlined),
+                              label: const Text('Примерка на фасаде'),
+                              style: OutlinedButton.styleFrom(
+                                fixedSize: const Size(double.infinity, 44),
+                              ),
+                            ),
+                          ),
+                        TextButton(
+                          onPressed:
+                              widget.item == null ? null : _onAddToEstimate,
+                          style: TextButton.styleFrom(
+                            fixedSize: const Size(double.infinity, 44),
+                            foregroundColor: AppColors.primaryButtonText,
+                            backgroundColor: AppColors.primaryButtonBackground,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(6)),
+                            ),
+                          ),
+                          child: const Text(
+                            'Добавить в смету',
+                            style: AppTextTheme.buttonLabel,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  child: const Text(
-                    'Добавить в смету',
-                    style: AppTextTheme.buttonLabel,
-                  ),
-                ),
+                  );
+                },
               ),
               const SizedBox(height: 16),
             ],

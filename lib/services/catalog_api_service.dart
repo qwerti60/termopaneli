@@ -29,8 +29,14 @@ class CatalogItem {
     String? title,
     String? subtitle,
     Map<String, dynamic>? rawPatch,
+    Iterable<String>? removeRawKeys,
   }) {
     final Map<String, dynamic> merged = Map<String, dynamic>.from(raw);
+    if (removeRawKeys != null) {
+      for (final String k in removeRawKeys) {
+        merged.remove(k);
+      }
+    }
     if (rawPatch != null) {
       merged.addAll(rawPatch);
     }
@@ -57,6 +63,149 @@ class CatalogCategory {
 abstract final class CatalogApiService {
   CatalogApiService._();
 
+  /// Парсинг `thickness_mm` из API/raw для фильтра и отображения.
+  static double? parseThicknessMm(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is num) {
+      final double d = value.toDouble();
+      return d > 0 ? d : null;
+    }
+    final String s = value.toString().trim().replaceAll(',', '.');
+    final double? d = double.tryParse(s);
+    if (d == null || d <= 0) {
+      return null;
+    }
+    return d;
+  }
+
+  /// Положительное значение размера в [raw] (мм), иначе `null`.
+  static double? rawPositiveMm(Map<String, dynamic> raw, String key) {
+    return parseThicknessMm(raw[key]);
+  }
+
+  /// Для позиций из `catalog_materials`: неполные габариты ведут к неточному количеству в смете.
+  /// Категории **panel** и **work** не проверяются. `null` — предупреждение не показываем.
+  static String? catalogMaterialEstimateDimensionHint(CatalogItem item) {
+    final String cat = item.category;
+    if (cat == 'panel' || cat == 'work') {
+      return null;
+    }
+    const Set<String> skipCategories = <String>{
+      'grout',
+      'fastener',
+      'consumable',
+    };
+    if (skipCategories.contains(cat)) {
+      return null;
+    }
+    final Map<String, dynamic> raw = item.raw;
+    final double? w = rawPositiveMm(raw, 'width_mm');
+    final double? len = rawPositiveMm(raw, 'length_mm');
+    final double? t = rawPositiveMm(raw, 'thickness_mm');
+
+    final bool hasCrossSection = (w != null && w > 0) || (t != null && t > 0);
+    final bool hasLength = len != null && len > 0;
+
+    const Set<String> needCrossAndRun = <String>{
+      'slope',
+      'ebb',
+      'corner',
+    };
+    if (needCrossAndRun.contains(cat)) {
+      if (!hasCrossSection && !hasLength) {
+        return 'В карточке не заполнены ширина/толщина и длина (мм). '
+            'Проверьте номенклатуру на сервере и количество в смете вручную.';
+      }
+      if (!hasCrossSection) {
+        return 'Не указана ширина или толщина профиля (мм). Подбор по проёму может быть неточным.';
+      }
+      if (!hasLength) {
+        return 'Не указана длина (мм). Уточните количество в смете вручную.';
+      }
+      return null;
+    }
+
+    const Set<String> needRunOrWidth = <String>{
+      'soffit',
+      'soffit_lining',
+      'front_overhang',
+      'plinth',
+    };
+    if (needRunOrWidth.contains(cat)) {
+      final bool hasWidth = w != null && w > 0;
+      if (!hasLength && !hasWidth) {
+        return 'Не указана длина или ширина элемента (мм). Проверьте данные в каталоге и количество в смете вручную.';
+      }
+    }
+    return null;
+  }
+
+  /// Строка для query `thickness` (совпадает с числовым сравнением на сервере).
+  static String? thicknessQueryString(double thicknessMm) {
+    if (thicknessMm <= 0) {
+      return null;
+    }
+    if (thicknessMm == thicknessMm.roundToDouble()) {
+      return '${thicknessMm.round()}';
+    }
+    return thicknessMm.toString();
+  }
+
+  static String? thicknessTokenForRaw(dynamic rawThicknessMm) {
+    final double? d = parseThicknessMm(rawThicknessMm);
+    if (d == null) {
+      return null;
+    }
+    return thicknessQueryString(d);
+  }
+
+  /// Для фильтра «Толщина, мм»: сначала [thickness_mm], иначе для откосов/отливов/уголков — [width_mm].
+  static String? thicknessOrWidthMmTokenForCatalogFilter(CatalogItem item) {
+    final String? t = thicknessTokenForRaw(item.raw['thickness_mm']);
+    if (t != null) {
+      return t;
+    }
+    const Set<String> fallbackWidthCategories = <String>{
+      'slope',
+      'ebb',
+      'corner',
+    };
+    if (!fallbackWidthCategories.contains(item.category)) {
+      return null;
+    }
+    return thicknessTokenForRaw(item.raw['width_mm']);
+  }
+
+  /// Уникальные значения толщины (мм) для выпадающего фильтра, по возрастанию.
+  static List<String> uniqueThicknessFilterTokens(Iterable<CatalogItem> items) {
+    final Set<String> out = <String>{};
+    for (final CatalogItem item in items) {
+      final String? t = thicknessOrWidthMmTokenForCatalogFilter(item);
+      if (t != null) {
+        out.add(t);
+      }
+    }
+    final List<String> list = out.toList();
+    list.sort((String a, String b) {
+      final double da = double.tryParse(a.replaceAll(',', '.')) ?? 0;
+      final double db = double.tryParse(b.replaceAll(',', '.')) ?? 0;
+      return da.compareTo(db);
+    });
+    return list;
+  }
+
+  static int compareThicknessFilterTokens(String a, String b) {
+    final double da = double.tryParse(a.replaceAll(',', '.')) ?? 0;
+    final double db = double.tryParse(b.replaceAll(',', '.')) ?? 0;
+    final int byNum = da.compareTo(db);
+    if (byNum != 0) {
+      return byNum;
+    }
+    return a.compareTo(b);
+  }
+
   static const List<CatalogCategory> categories = <CatalogCategory>[
     CatalogCategory(code: 'all', label: 'Все'),
     CatalogCategory(code: 'panel', label: 'Панели'),
@@ -65,8 +214,11 @@ abstract final class CatalogApiService {
     CatalogCategory(code: 'grout', label: 'Затирка'),
     CatalogCategory(code: 'ebb', label: 'Отливы'),
     CatalogCategory(code: 'soffit', label: 'Софиты'),
+    CatalogCategory(code: 'soffit_lining', label: 'Подшивка софитов'),
+    CatalogCategory(code: 'front_overhang', label: 'Фронтальные свесы'),
     CatalogCategory(code: 'plinth', label: 'Цоколь'),
     CatalogCategory(code: 'fastener', label: 'Крепеж'),
+    CatalogCategory(code: 'consumable', label: 'Расходники'),
   ];
 
   static Uri _uri(String path) {
@@ -83,13 +235,32 @@ abstract final class CatalogApiService {
   static Future<List<CatalogItem>> fetchCatalog({
     int limit = 100,
     String category = 'all',
+    String? material,
+    String? color,
+    String? thickness,
   }) async {
-    final String normalizedCategory = Uri.encodeQueryComponent(category);
+    final Map<String, String> query = <String, String>{
+      'limit': '$limit',
+      'category': category,
+    };
+    final String? m = material?.trim();
+    final String? c = color?.trim();
+    final String? t = thickness?.trim();
+    if (m != null && m.isNotEmpty) {
+      query['material'] = m;
+    }
+    if (c != null && c.isNotEmpty) {
+      query['color'] = c;
+    }
+    if (t != null && t.isNotEmpty) {
+      query['thickness'] = t;
+    }
+    final Uri url = _uri('/api/v1/catalog/list.php').replace(
+      queryParameters: query,
+    );
     final http.Response res = await http
         .get(
-          _uri(
-            '/api/v1/catalog/list.php?limit=$limit&category=$normalizedCategory',
-          ),
+          url,
           headers: const <String, String>{'Accept': 'application/json'},
         )
         .timeout(const Duration(seconds: 30));

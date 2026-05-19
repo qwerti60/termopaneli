@@ -1,4 +1,6 @@
 -- Каталог дополнительных материалов для API.
+-- Набор позиций синхронизирован с docs/catalogs/slopes_catalog.md и
+-- docs/catalogs/additional_elements_catalog.md (артикулы, категории, пути к img).
 -- Перед запуском сделайте бэкап БД.
 
 CREATE TABLE IF NOT EXISTS catalog_materials (
@@ -13,6 +15,7 @@ CREATE TABLE IF NOT EXISTS catalog_materials (
   thickness_mm DECIMAL(10,2) NULL,
   width_mm DECIMAL(10,2) NULL,
   length_mm DECIMAL(10,2) NULL,
+  package_qty INT UNSIGNED NULL DEFAULT NULL COMMENT 'Кратность упаковки для округления количества вверх (>=2); NULL — не применять',
   unit VARCHAR(50) NOT NULL DEFAULT 'шт',
   price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   image_path VARCHAR(255) NULL,
@@ -30,17 +33,37 @@ INSERT INTO catalog_materials
 VALUES
   ('SLP-PL-WHT-150', 'slope', 'Откос пластиковый белый 150 мм', 'Пластиковый откос для оконных и дверных проемов.', 'Пластик', 'Белый', NULL, NULL, 150, 3000, 'шт', 0, 'catalog/slopes/slope_plastic_white_150.jpg', 1, 10),
   ('SLP-PL-WHT-200', 'slope', 'Откос пластиковый белый 200 мм', 'Пластиковый откос увеличенной ширины для глубоких проемов.', 'Пластик', 'Белый', NULL, NULL, 200, 3000, 'шт', 0, 'catalog/slopes/slope_plastic_white_200.jpg', 1, 20),
+  ('SLP-PL-WHT-250', 'slope', 'Откос пластиковый белый 250 мм', 'Пластиковый откос для очень глубоких проемов.', 'Пластик', 'Белый', NULL, NULL, 250, 3000, 'шт', 0, 'catalog/slopes/slope_plastic_white_250.jpg', 1, 25),
   ('SLP-PL-BRN-150', 'slope', 'Откос пластиковый коричневый 150 мм', 'Пластиковый откос коричневого цвета.', 'Пластик', 'Коричневый', NULL, NULL, 150, 3000, 'шт', 0, 'catalog/slopes/slope_plastic_brown_150.jpg', 1, 30),
+  ('SLP-PL-BRN-200', 'slope', 'Откос пластиковый коричневый 200 мм', 'Пластиковый откос коричневого цвета увеличенной ширины.', 'Пластик', 'Коричневый', NULL, NULL, 200, 3000, 'шт', 0, 'catalog/slopes/slope_plastic_brown_200.jpg', 1, 35),
   ('SLP-MT-WHT-150', 'slope', 'Откос металлический белый 150 мм', 'Металлический откос для наружного оформления проемов.', 'Металл', 'Белый', NULL, NULL, 150, 2000, 'шт', 0, 'catalog/slopes/slope_metal_white_150.jpg', 1, 40),
+  ('SLP-MT-WHT-200', 'slope', 'Откос металлический белый 200 мм', 'Металлический откос белого цвета для глубоких проемов.', 'Металл', 'Белый', NULL, NULL, 200, 2000, 'шт', 0, 'catalog/slopes/slope_metal_white_200.jpg', 1, 45),
+  ('SLP-MT-BRN-150', 'slope', 'Откос металлический коричневый 150 мм', 'Металлический откос коричневого цвета.', 'Металл', 'Коричневый', NULL, NULL, 150, 2000, 'шт', 0, 'catalog/slopes/slope_metal_brown_150.jpg', 1, 48),
   ('SLP-MT-BRN-200', 'slope', 'Откос металлический коричневый 200 мм', 'Металлический откос коричневого цвета для глубоких проемов.', 'Металл', 'Коричневый', NULL, NULL, 200, 2000, 'шт', 0, 'catalog/slopes/slope_metal_brown_200.jpg', 1, 50),
+  ('SLP-MT-RAL-CUSTOM', 'slope', 'Откос металлический RAL под заказ', 'Цена и срок поставки требуют уточнения у менеджера.', 'Металл', 'Под заказ', NULL, NULL, 200, 2000, 'шт', 0, 'catalog/slopes/slope_metal_ral_custom.jpg', 0, 95),
   ('CRN-PL-WHT-50', 'corner', 'Уголок пластиковый белый 50x50', 'Пластиковый уголок для оформления внешних углов фасада.', 'Пластик', 'Белый', NULL, NULL, 50, 3000, 'шт', 0, 'catalog/elements/corner_plastic_white_50.jpg', 1, 110),
+  ('CRN-PL-BRN-50', 'corner', 'Уголок пластиковый коричневый 50x50', 'Пластиковый уголок коричневого цвета.', 'Пластик', 'Коричневый', NULL, NULL, 50, 3000, 'шт', 0, 'catalog/elements/corner_plastic_brown_50.jpg', 1, 115),
+  ('CRN-MT-WHT-50', 'corner', 'Уголок металлический белый 50x50', 'Металлический уголок белого цвета.', 'Металл', 'Белый', NULL, NULL, 50, 2000, 'шт', 0, 'catalog/elements/corner_metal_white_50.jpg', 1, 118),
   ('CRN-MT-BRN-50', 'corner', 'Уголок металлический коричневый 50x50', 'Металлический уголок коричневого цвета.', 'Металл', 'Коричневый', NULL, NULL, 50, 2000, 'шт', 0, 'catalog/elements/corner_metal_brown_50.jpg', 1, 120),
   ('GRT-GRAY-25', 'grout', 'Затирка серая 25 кг', 'Затирочная смесь для межпанельных швов.', 'Смесь', 'Серый', NULL, NULL, NULL, NULL, 'мешок', 0, 'catalog/elements/grout_gray_25kg.jpg', 1, 210),
+  ('GRT-BEIGE-25', 'grout', 'Затирка бежевая 25 кг', 'Затирочная смесь бежевого оттенка.', 'Смесь', 'Бежевый', NULL, NULL, NULL, NULL, 'мешок', 0, 'catalog/elements/grout_beige_25kg.jpg', 1, 220),
+  ('GRT-BROWN-25', 'grout', 'Затирка коричневая 25 кг', 'Затирочная смесь коричневого оттенка.', 'Смесь', 'Коричневый', NULL, NULL, NULL, NULL, 'мешок', 0, 'catalog/elements/grout_brown_25kg.jpg', 1, 230),
   ('EBB-MT-WHT-150', 'ebb', 'Отлив металлический белый 150 мм', 'Металлический оконный отлив белого цвета.', 'Металл', 'Белый', NULL, NULL, 150, 2000, 'шт', 0, 'catalog/elements/ebb_metal_white_150.jpg', 1, 310),
+  ('EBB-MT-BRN-150', 'ebb', 'Отлив металлический коричневый 150 мм', 'Металлический оконный отлив коричневого цвета.', 'Металл', 'Коричневый', NULL, NULL, 150, 2000, 'шт', 0, 'catalog/elements/ebb_metal_brown_150.jpg', 1, 315),
+  ('EBB-MT-WHT-200', 'ebb', 'Отлив металлический белый 200 мм', 'Металлический отлив увеличенной ширины.', 'Металл', 'Белый', NULL, NULL, 200, 2000, 'шт', 0, 'catalog/elements/ebb_metal_white_200.jpg', 1, 320),
   ('SFT-PL-WHT-PERF', 'soffit', 'Софит пластиковый белый перфорированный', 'Перфорированный софит для подшивки карнизных свесов.', 'Пластик', 'Белый', 'Перфорированный', NULL, NULL, 3000, 'шт', 0, 'catalog/elements/soffit_plastic_white_perf.jpg', 1, 410),
+  ('SFT-PL-BRN-PERF', 'soffit', 'Софит пластиковый коричневый перфорированный', 'Перфорированный софит коричневого цвета.', 'Пластик', 'Коричневый', 'Перфорированный', NULL, NULL, 3000, 'шт', 0, 'catalog/elements/soffit_plastic_brown_perf.jpg', 1, 415),
+  ('SFT-MT-WHT-PERF', 'soffit', 'Софит металлический белый перфорированный', 'Металлический перфорированный софит.', 'Металл', 'Белый', 'Перфорированный', NULL, NULL, 3000, 'шт', 0, 'catalog/elements/soffit_metal_white_perf.jpg', 1, 420),
+  ('SLN-PL-WHT', 'soffit_lining', 'Подшивка софитов пластиковая белая', 'Панель подшивки для карнизных свесов.', 'Пластик', 'Белый', NULL, NULL, NULL, 3000, 'шт', 0, 'catalog/elements/soffit_lining_plastic_white.jpg', 1, 450),
+  ('SLN-MT-BRN', 'soffit_lining', 'Подшивка софитов металлическая коричневая', 'Металлическая подшивка софитов.', 'Металл', 'Коричневый', NULL, NULL, NULL, 3000, 'шт', 0, 'catalog/elements/soffit_lining_metal_brown.jpg', 1, 455),
+  ('FOV-MT-WHT', 'front_overhang', 'Фронтальный свес металлический белый', 'Элемент фронтального свеса белого цвета.', 'Металл', 'Белый', NULL, NULL, NULL, 2000, 'шт', 0, 'catalog/elements/front_overhang_metal_white.jpg', 1, 470),
+  ('FOV-MT-BRN', 'front_overhang', 'Фронтальный свес металлический коричневый', 'Элемент фронтального свеса коричневого цвета.', 'Металл', 'Коричневый', NULL, NULL, NULL, 2000, 'шт', 0, 'catalog/elements/front_overhang_metal_brown.jpg', 1, 475),
   ('PLN-START', 'plinth', 'Стартовый профиль для цоколя', 'Стартовый профиль для монтажа цокольной части.', 'Металл', 'Оцинкованный', NULL, NULL, NULL, 2000, 'шт', 0, 'catalog/elements/plinth_start_profile.jpg', 1, 510),
+  ('PLN-CAP-WHT', 'plinth', 'Планка цокольная белая', 'Цокольная планка белого цвета.', 'Металл', 'Белый', NULL, NULL, NULL, 2000, 'шт', 0, 'catalog/elements/plinth_cap_white.jpg', 1, 520),
   ('FST-DWL-100', 'fastener', 'Дюбель фасадный 100 мм', 'Крепеж для монтажа фасадных термопанелей.', 'Металл/пластик', 'Стандарт', NULL, NULL, NULL, 100, 'шт', 0, 'catalog/elements/fastener_dowel_100.jpg', 1, 610),
-  ('CNS-FOAM', 'consumable', 'Монтажная пена', 'Расходный материал для монтажных работ.', 'Смесь', 'Стандарт', NULL, NULL, NULL, NULL, 'баллон', 0, 'catalog/elements/consumable_foam.jpg', 1, 710)
+  ('FST-DWL-120', 'fastener', 'Дюбель фасадный 120 мм', 'Крепеж увеличенной длины для толстых слоёв.', 'Металл/пластик', 'Стандарт', NULL, NULL, NULL, 120, 'шт', 0, 'catalog/elements/fastener_dowel_120.jpg', 1, 615),
+  ('CNS-FOAM', 'consumable', 'Монтажная пена', 'Расходный материал для монтажных работ.', 'Смесь', 'Стандарт', NULL, NULL, NULL, NULL, 'баллон', 0, 'catalog/elements/consumable_foam.jpg', 1, 710),
+  ('CNS-SEALANT', 'consumable', 'Герметик фасадный', 'Фасадный герметик для швов и примыканий.', 'Смесь', 'Белый', NULL, NULL, NULL, NULL, 'туба', 0, 'catalog/elements/consumable_sealant_white.jpg', 1, 720)
 ON DUPLICATE KEY UPDATE
   category = VALUES(category),
   name = VALUES(name),
@@ -52,6 +75,7 @@ ON DUPLICATE KEY UPDATE
   width_mm = VALUES(width_mm),
   length_mm = VALUES(length_mm),
   unit = VALUES(unit),
+  price = VALUES(price),
   image_path = VALUES(image_path),
   is_active = VALUES(is_active),
   sort_order = VALUES(sort_order);

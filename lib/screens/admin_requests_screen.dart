@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
+import 'package:termopaneli_app/services/admin_auth_api_service.dart';
 import 'package:termopaneli_app/services/admin_requests_api_service.dart';
 import 'package:termopaneli_app/services/estimate_share_text.dart';
 import 'package:termopaneli_app/services/session_service.dart';
@@ -45,7 +46,7 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
   final TextEditingController _tokenController = TextEditingController();
   late Future<AdminRequestListResult> _future;
   String? _filterStatus;
-  bool _tokenLoaded = false;
+  bool _unauthorizedHandled = false;
 
   @override
   void initState() {
@@ -71,7 +72,6 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
       if (t != null && t.isNotEmpty) {
         _tokenController.text = t;
       }
-      _tokenLoaded = true;
     });
     _reloadList();
   }
@@ -86,6 +86,7 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
   void _reloadList() {
     final String token = _tokenController.text.trim();
     setState(() {
+      _unauthorizedHandled = false;
       _future = AdminRequestsApiService.fetchRequests(
         token,
         status: _filterStatus,
@@ -94,27 +95,94 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
     });
   }
 
-  Future<void> _saveToken() async {
-    await SessionService.saveAdminApiToken(_tokenController.text);
-    if (!mounted) {
-      return;
+  Future<void> _logoutPressed() async {
+    final String t = _tokenController.text.trim();
+    if (t.isNotEmpty) {
+      await AdminAuthApiService.logout(t);
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Токен сохранен на устройстве')),
-    );
-    _reloadList();
-  }
-
-  Future<void> _clearToken() async {
     await SessionService.clearAdminApiToken();
     _tokenController.clear();
     if (!mounted) {
       return;
     }
-    setState(_reloadList);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Токен удален')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Вы вышли из админки')),
+    );
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _onSessionInvalid() async {
+    final String t = _tokenController.text.trim();
+    if (t.isNotEmpty) {
+      await AdminAuthApiService.logout(t);
+    }
+    await SessionService.clearAdminApiToken();
+    _tokenController.clear();
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Сессия недействительна. Войдите снова через Профиль → Заявки (админ).'),
+      ),
+    );
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _showManualTokenDialog() async {
+    final TextEditingController c = TextEditingController(text: _tokenController.text);
+    final String? saved = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          title: const Text('Секрет из config.php'),
+          content: TextField(
+            controller: c,
+            obscureText: true,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: 'admin_api_token',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, c.text.trim()),
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
+    );
+    // Нельзя dispose контроллера сразу после pop: поле диалога ещё может размонтироваться в том же кадре.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      c.dispose();
+    });
+    final String t = (saved ?? '').trim();
+    if (t.isEmpty || !mounted) {
+      return;
+    }
+    await SessionService.saveAdminApiToken(t);
+    if (!mounted) {
+      return;
+    }
+    final String token = t;
+    setState(() {
+      _tokenController.text = token;
+      _unauthorizedHandled = false;
+      _future = AdminRequestsApiService.fetchRequests(
+        token,
+        status: _filterStatus,
+        limit: 100,
+      );
+    });
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Токен из config сохранён')),
+    );
   }
 
   Future<void> _applyStatus(AdminEstimateRequest request, String status) async {
@@ -125,6 +193,11 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
           status: status,
         );
     if (!mounted) {
+      return;
+    }
+    if (r.unauthorized) {
+      Navigator.of(context).pop();
+      await _onSessionInvalid();
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
@@ -168,6 +241,31 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
           ),
         ),
         title: const Text('Заявки (админ)', style: AppTextTheme.screenTitle),
+        actions: [
+          IconButton(
+            tooltip: 'Выйти из админки',
+            onPressed: _logoutPressed,
+            icon: const Icon(Icons.logout_rounded, color: AppColors.headingText),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: AppColors.headingText),
+            onSelected: (String value) {
+              if (value == 'manual') {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _showManualTokenDialog();
+                  }
+                });
+              }
+            },
+            itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'manual',
+                child: Text('Секрет из config.php'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -176,40 +274,8 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(
-                'Токен из admin_api_token в config.php на сервере. Хранится только на этом устройстве.',
+                'Список заявок и смена статуса. Токен после входа администратора хранится только на этом устройстве.',
                 style: AppTextTheme.body32.copyWith(fontSize: AppTextSizes.s28),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                controller: _tokenController,
-                obscureText: true,
-                autocorrect: false,
-                decoration: const InputDecoration(
-                  labelText: 'Admin API token',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                onSubmitted: (_) => _saveToken(),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _tokenLoaded ? _saveToken : null,
-                      child: const Text('Сохранить токен'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  OutlinedButton(
-                    onPressed: _clearToken,
-                    child: const Text('Сбросить'),
-                  ),
-                ],
               ),
             ),
             Padding(
@@ -269,6 +335,14 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
                         return const SizedBox.shrink();
                       }
                       if (!r.ok) {
+                        if (r.unauthorized && !_unauthorizedHandled) {
+                          _unauthorizedHandled = true;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              _onSessionInvalid();
+                            }
+                          });
+                        }
                         return Center(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
@@ -284,7 +358,7 @@ class _AdminRequestsScreenState extends State<AdminRequestsScreen> {
                         return Center(
                           child: Text(
                             _tokenController.text.trim().isEmpty
-                                ? 'Введите и сохраните токен, затем обновите список.'
+                                ? 'Нет токена. Закройте экран и откройте «Заявки (админ)» из профиля снова.'
                                 : 'Заявок нет.',
                             style: AppTextTheme.body32,
                             textAlign: TextAlign.center,

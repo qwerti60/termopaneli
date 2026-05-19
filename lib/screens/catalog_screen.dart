@@ -17,6 +17,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   String _sortMode = 'name_asc';
   String _selectedMaterial = 'all';
   String _selectedColor = 'all';
+  String _selectedThickness = 'all';
   late Future<List<CatalogItem>> _catalogFuture;
 
   @override
@@ -26,7 +27,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   Future<List<CatalogItem>> _loadCatalog() {
-    return CatalogApiService.fetchCatalog(category: _selectedCategory);
+    return CatalogApiService.fetchCatalog(
+      category: _selectedCategory,
+      material: _selectedMaterial == 'all' ? null : _selectedMaterial,
+      color: _selectedColor == 'all' ? null : _selectedColor,
+      thickness: _selectedThickness == 'all' ? null : _selectedThickness,
+    );
   }
 
   void _selectCategory(String category) {
@@ -39,19 +45,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
     });
   }
 
+  void _retryCatalog() {
+    setState(() {
+      _catalogFuture = _loadCatalog();
+    });
+  }
+
   List<CatalogItem> _visibleItems(List<CatalogItem> items) {
-    final List<CatalogItem> filtered = items.where((CatalogItem item) {
-      if (_selectedMaterial != 'all' &&
-          _fieldValue(item, <String>['material']) != _selectedMaterial) {
-        return false;
-      }
-      if (_selectedColor != 'all' &&
-          _fieldValue(item, <String>['color', 'color_description']) !=
-              _selectedColor) {
-        return false;
-      }
-      return true;
-    }).toList();
+    final List<CatalogItem> filtered = List<CatalogItem>.from(items);
 
     filtered.sort((CatalogItem a, CatalogItem b) {
       switch (_sortMode) {
@@ -98,8 +99,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
       'color',
       'color_description',
     ]);
+    final List<String> thicknesses =
+        CatalogApiService.uniqueThicknessFilterTokens(items);
     String material = _selectedMaterial;
     String color = _selectedColor;
+    String thickness = _selectedThickness;
+    final bool showThickness =
+        thicknesses.isNotEmpty || thickness != 'all';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -108,60 +114,78 @@ class _CatalogScreenState extends State<CatalogScreen> {
           builder: (BuildContext context, StateSetter setSheetState) {
             return Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('Фильтр', style: AppTextTheme.sectionTitle),
-                  const SizedBox(height: 14),
-                  _DropdownFilter(
-                    label: 'Материал',
-                    value: material,
-                    values: materials,
-                    onChanged: (String value) {
-                      setSheetState(() => material = value);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _DropdownFilter(
-                    label: 'Цвет',
-                    value: color,
-                    values: colors,
-                    onChanged: (String value) {
-                      setSheetState(() => color = value);
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _selectedMaterial = 'all';
-                              _selectedColor = 'all';
-                            });
-                            Navigator.pop(context);
-                          },
-                          child: const Text('Сбросить'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () {
-                            setState(() {
-                              _selectedMaterial = material;
-                              _selectedColor = color;
-                            });
-                            Navigator.pop(context);
-                          },
-                          child: const Text('Применить'),
-                        ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('Фильтр', style: AppTextTheme.sectionTitle),
+                    const SizedBox(height: 14),
+                    _DropdownFilter(
+                      label: 'Материал',
+                      value: material,
+                      values: materials,
+                      onChanged: (String value) {
+                        setSheetState(() => material = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _DropdownFilter(
+                      label: 'Цвет',
+                      value: color,
+                      values: colors,
+                      onChanged: (String value) {
+                        setSheetState(() => color = value);
+                      },
+                    ),
+                    if (showThickness) ...[
+                      const SizedBox(height: 12),
+                      _DropdownFilter(
+                        label: 'Толщина, мм',
+                        value: thickness,
+                        values: thicknesses,
+                        compareOptions: CatalogApiService.compareThicknessFilterTokens,
+                        onChanged: (String value) {
+                          setSheetState(() => thickness = value);
+                        },
                       ),
                     ],
-                  ),
-                ],
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedMaterial = 'all';
+                                _selectedColor = 'all';
+                                _selectedThickness = 'all';
+                                _catalogFuture = _loadCatalog();
+                              });
+                              Navigator.pop(context);
+                            },
+                            child: const Text('Сбросить'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedMaterial = material;
+                                _selectedColor = color;
+                                _selectedThickness = thickness;
+                                _catalogFuture = _loadCatalog();
+                              });
+                              Navigator.pop(context);
+                            },
+                            child: const Text('Применить'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -347,10 +371,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         }
                         if (snapshot.hasError) {
                           return Center(
-                            child: Text(
-                              'Не удалось загрузить каталог',
-                              style: AppTextTheme.body32.copyWith(
-                                color: AppColors.headingText,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Text(
+                                    'Не удалось загрузить каталог',
+                                    textAlign: TextAlign.center,
+                                    style: AppTextTheme.body32.copyWith(
+                                      color: AppColors.headingText,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  FilledButton.tonal(
+                                    onPressed: _retryCatalog,
+                                    child: const Text('Повторить'),
+                                  ),
+                                ],
                               ),
                             ),
                           );
@@ -389,7 +427,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
-  bool get _hasFilters => _selectedMaterial != 'all' || _selectedColor != 'all';
+  bool get _hasFilters =>
+      _selectedMaterial != 'all' ||
+      _selectedColor != 'all' ||
+      _selectedThickness != 'all';
 }
 
 class _DropdownFilter extends StatelessWidget {
@@ -398,29 +439,46 @@ class _DropdownFilter extends StatelessWidget {
     required this.value,
     required this.values,
     required this.onChanged,
+    this.compareOptions,
   });
 
   final String label;
   final String value;
   final List<String> values;
   final ValueChanged<String> onChanged;
+  final Comparator<String>? compareOptions;
 
   @override
   Widget build(BuildContext context) {
+    // Reserve `all` for «Все»; duplicate `DropdownMenuItem.value` breaks the dropdown assert.
+    final Set<String> optionSet = <String>{
+      for (final String v in values)
+        if (v.isNotEmpty && v != 'all') v,
+      if (value.isNotEmpty && value != 'all') value,
+    };
+    final List<String> options = optionSet.toList();
+    if (compareOptions != null) {
+      options.sort(compareOptions);
+    } else {
+      options.sort();
+    }
+    final String initialDropdownValue =
+        value.isEmpty || value == 'all' ? 'all' : value;
+
     final List<DropdownMenuItem<String>> items = <DropdownMenuItem<String>>[
       const DropdownMenuItem<String>(
         value: 'all',
         child: Text('Все', overflow: TextOverflow.ellipsis),
       ),
-      ...values.map(
-        (String value) => DropdownMenuItem<String>(
-          value: value,
-          child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ...options.map(
+        (String option) => DropdownMenuItem<String>(
+          value: option,
+          child: Text(option, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ),
     ];
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      initialValue: initialDropdownValue,
       isExpanded: true,
       decoration: InputDecoration(labelText: label),
       items: items,

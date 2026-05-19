@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Руководство по мобильному приложению — для пользователя и менеджера</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #fff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #0369a1;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 1rem;
+    }
+    .wrap { max-width: 52rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    header {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,.06);
+    }
+    header h1 { font-size: 1.35rem; margin: 0 0 0.35rem; font-weight: 700; }
+    header p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    nav.toc h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 0.6rem; }
+    nav.toc ul { margin: 0; padding-left: 1.1rem; }
+    nav.toc li { margin: 0.25rem 0; }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    }
+    section h2 {
+      font-size: 1.15rem;
+      margin: 0 0 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    section h3 { font-size: 1rem; margin: 1.1rem 0 0.4rem; color: #1e293b; }
+    p { margin: 0.5rem 0; }
+    ul, ol { margin: 0.4rem 0 0.6rem; padding-left: 1.25rem; }
+    li { margin: 0.25rem 0; }
+    .note {
+      background: #eff6ff;
+      border-left: 4px solid var(--accent);
+      padding: 0.65rem 0.85rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+    code, kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.88em;
+      background: #f1f5f9;
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    a.back { color: var(--accent); text-decoration: none; font-weight: 500; }
+    a.back:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Руководство по мобильному приложению</h1>
+      <p>Для <strong>покупателя / заказчика</strong> и для <strong>менеджера офиса</strong>: как пользоваться приложением и как устроены заявки и сметы.</p>
+    </header>
+
+    <nav class="toc" aria-label="Содержание">
+      <h2>Содержание</h2>
+      <ul>
+        <li><a href="#user-start">1. Начало работы в приложении</a></li>
+        <li><a href="#user-catalog">2. Каталог и карточка товара</a></li>
+        <li><a href="#user-estimate">3. Смета: материалы и работы</a></li>
+        <li><a href="#user-save">4. Сохранение сметы и заявка</a></li>
+        <li><a href="#user-lk">5. Личный кабинет</a></li>
+        <li><a href="#manager">6. Для менеджера: связь с веб-админкой</a></li>
+      </ul>
+    </nav>
+
+    <section id="user-start">
+      <h2>1. Начало работы в приложении</h2>
+      <p>Приложение позволяет просматривать каталог термопанелей и сопутствующих материалов, собирать смету, сохранять её в аккаунте и отправлять как заявку в компанию.</p>
+      <h3>Гость и вход</h3>
+      <ul>
+        <li><strong>Без регистрации</strong> можно листать каталог и собирать смету на устройстве.</li>
+        <li><strong>Сохранить смету на сервере</strong>, открыть список сохранённых смет и <strong>отправить заявку</strong> можно после <strong>входа в аккаунт</strong> (обычно по номеру телефона и коду из SMS).</li>
+      </ul>
+      <p class="note">Если кнопка просит войти — выполните вход с экрана профиля или там, где приложение предложит авторизацию.</p>
+    </section>
+
+    <section id="user-catalog">
+      <h2>2. Каталог и карточка товара</h2>
+      <ul>
+        <li>В <strong>каталоге</strong> выберите категорию или воспользуйтесь <strong>поиском</strong>.</li>
+        <li>Откройте <strong>карточку товара</strong>: описание, цена (если указана), при необходимости — размеры и подсказки.</li>
+        <li>Укажите <strong>количество</strong> и нажмите <strong>«Добавить в смету»</strong>. При повторном добавлении того же товара количество в смете увеличится.</li>
+        <li>Для части материалов приложение может запросить уточнение размеров — это нужно для корректного расчёта.</li>
+      </ul>
+      <p class="muted">Для панелей на фасад может быть доступна <strong>примерка / маска</strong> (отдельный экран) — следуйте подсказкам на экране.</p>
+    </section>
+
+    <section id="user-estimate">
+      <h2>3. Смета: материалы и работы</h2>
+      <p>Экран <strong>«Смета»</strong> — центральное место расчёта.</p>
+      <h3>Вкладка «Материалы»</h3>
+      <ul>
+        <li>Список добавленных позиций: можно менять <strong>количество</strong> кнопками <kbd>+</kbd>/<kbd>−</kbd> или удалить строку.</li>
+        <li>Для расчёта панелей по площади укажите <strong>площадь фасада в м²</strong> (если предусмотрено) и воспользуйтесь пересчётом по подсказкам на экране.</li>
+        <li><strong>Запас на подрезку (%)</strong> влияет на итоговое количество панелей — значение можно изменить перед расчётом.</li>
+        <li><strong>Очистить смету</strong> — удаляет все позиции с экрана (несохранённое на сервере не восстановить).</li>
+      </ul>
+      <h3>Вкладка «Работы»</h3>
+      <ul>
+        <li>Добавляйте типовые работы (например, по площади) или отдельные позиции из прайса.</li>
+        <li>При необходимости задайте <strong>скидки</strong> (по строке или на смету) — итог пересчитается.</li>
+      </ul>
+      <h3>Поделиться</h3>
+      <p>Через системное меню «Поделиться» можно отправить <strong>текст сметы</strong> или <strong>PDF</strong> — удобно для согласования с семьёй или прорабом до отправки официальной заявки.</p>
+    </section>
+
+    <section id="user-save">
+      <h2>4. Сохранение сметы и заявка</h2>
+      <ol>
+        <li>Убедитесь, что вы <strong>вошли в аккаунт</strong>.</li>
+        <li>На экране сметы нажмите <strong>«Сохранить»</strong> — смета уйдёт на сервер и появится в разделе сохранённых.</li>
+        <li>В <strong>«Сохранённые сметы»</strong> (личный кабинет) можно открыть смету, отредактировать, удалить или отправить в заявку.</li>
+        <li><strong>«В заявку» / «Отправить как заявку»</strong> — создаёт заявку для офиса. Контакты подставляются из <strong>профиля</strong>; при желании добавьте комментарий в форме отправки.</li>
+      </ol>
+      <p class="note">После отправки заявку обрабатывает менеджер; статус можно смотреть в приложении в разделе <strong>«Мои заявки»</strong> (после обновления данных).</p>
+    </section>
+
+    <section id="user-lk">
+      <h2>5. Личный кабинет</h2>
+      <p>Раздел профиля объединяет сервисные функции:</p>
+      <ul>
+        <li><strong>Профиль / мои данные</strong> — ФИО, email; телефон обычно привязан при входе и отображается для контроля.</li>
+        <li><strong>Сохранённые сметы</strong> — черновики на сервере; переключение «Сметы» / «Заявки» для удобства.</li>
+        <li><strong>Мои заявки</strong> — сметы, по которым уже создана заявка и назначен статус.</li>
+        <li><strong>Выход</strong> — завершает сессию на устройстве и на сервере (повторный вход потребует новый код).</li>
+      </ul>
+      <p class="muted">Пункты для сотрудников (например, вход администратора в список заявок) в меню не мешают обычному пользователю — ими пользуется только персонал с учётной записью.</p>
+    </section>
+
+    <section id="manager">
+      <h2>6. Для менеджера: связь с веб-админкой</h2>
+      <p>Эта веб-страница открыта из <strong>админ-панели</strong> рядом с каталогом и заявками. Ниже — как стыкуется работа офиса с приложением клиента.</p>
+      <h3>Что делает клиент в приложении</h3>
+      <ul>
+        <li>Собирает смету → <strong>сохраняет</strong> (запись в БД) → при необходимости <strong>отправляет заявку</strong>.</li>
+        <li>Пока клиент только сохранил смету без заявки, в разделе <strong>«Заявки»</strong> веб-админки строки может не быть — заявка появляется после шага «в заявку».</li>
+      </ul>
+      <h3>Где смотреть в админке</h3>
+      <ul>
+        <li><strong>Заявки и сметы</strong> — таблица входящих заявок, смена статуса, переход к просмотру сметы и PDF.</li>
+        <li><strong>Сметы (все)</strong> — полный список сохранённых смет по пользователям; удаление отсюда удаляет и позиции, и связанную заявку (каскад в базе).</li>
+        <li><strong>Панели / материалы / работы</strong> — содержимое каталога и прайсы, из которых клиент собирает смету.</li>
+      </ul>
+      <h3>Практические советы</h3>
+      <ul>
+        <li>Просите клиента указать в заявке <strong>комментарий</strong> (этаж, подъезд, сроки) — поле доступно при отправке.</li>
+        <li>Если клиент «застрял» на старой смете — пусть откроет сохранённую смету из ЛК или соберёт новую и снова сохранит.</li>
+        <li>Телефон и имя для связи берутся из <strong>профиля</strong> пользователя в приложении — при пустых данных уточните контакты у клиента.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Документ статичный: при обновлении приложения часть экранов и названий кнопок может слегка отличаться — ориентируйтесь на подписи в интерфейсе.</p>
+      <p><a class="back" href="requests.php">← Вернуться в админку (заявки)</a></p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -20,34 +20,48 @@
    POST .../api/v1/auth/verify-phone.php     — тело JSON {"phone":"...","code":"123456"}
                                               для существующего вернет token, для нового — is_new_user=true
    POST .../api/v1/auth/register.php         — тело JSON с phone+code+ФИО+email и accepted_user_agreement: true, создает user_profiles и выдает token
-   GET  .../api/v1/catalog/list.php          — каталог панелей и материалов
+   GET  .../api/v1/catalog/list.php          — каталог панелей и материалов; query: category, limit, offset, опционально material и color (точное совпадение полей в catalog_materials; к выборке панелей не применяются)
                                                параметры: category=all|panel|slope|corner|grout|ebb|soffit|plinth|fastener
    GET  .../api/v1/settings/company-for-pdf.php — JSON реквизитов и ссылок для шапки PDF (без Authorization); значения из config.php (ключ company_pdf) с дефолтами в PHP
    GET  .../api/v1/settings/app-manifest.php — единый JSON: company_pdf (как выше) + user_agreement_url + privacy_policy_url (опционально из config.php → app_manifest)
+   GET  .../api/v1/profile/me.php            — профиль текущего пользователя (ФИО, телефон, email), Authorization: Bearer <token>
+   POST .../api/v1/profile/update.php       — обновление ФИО и email (JSON: last_name, first_name, middle_name, email); телефон не меняется; Authorization: Bearer <token>; ответ как у me.php
    GET  .../api/v1/work-prices/list.php      — тестовый прайс работ для сметы
    POST .../api/v1/estimates/save.php        — сохранение сметы, Authorization: Bearer <token>
    GET  .../api/v1/estimates/list.php        — список смет пользователя, Authorization: Bearer <token>
    POST .../api/v1/estimates/submit.php      — отправка сохраненной сметы как заявки, Authorization: Bearer <token>
+   POST .../api/v1/estimates/delete.php      — удаление сохранённой сметы текущего пользователя, JSON { "estimate_id": <int> }, Authorization: Bearer <token>
                                              тело JSON {"estimate_id":123,"comment":"..."}
                                              контакты берутся из user_profiles текущего пользователя
-   GET  .../api/v1/admin/requests/list.php   — список заявок для администратора, Authorization: Bearer <admin_api_token>
+   GET  .../api/v1/admin/requests/list.php   — список заявок для администратора, Authorization: Bearer <токен>
                                              параметры: status=new|in_work|need_info|done|closed|cancelled, limit=1..200
-   POST .../api/v1/admin/requests/status.php — смена статуса заявки, Authorization: Bearer <admin_api_token>
+   POST .../api/v1/admin/requests/status.php — смена статуса заявки, Authorization: Bearer <токен>
                                              тело JSON {"request_id":123,"status":"in_work"}
-   В приложении: Профиль -> Заявки (админ) — ввод admin token, список и смена статуса.
+   Токен в заголовке — один из двух вариантов:
+     a) admin_api_token из config.php (как раньше, для curl/скриптов);
+     b) токен из POST .../api/v1/admin/auth/login.php после входа логином/паролем (таблица admin_accounts).
+   POST .../api/v1/admin/auth/login.php      — тело JSON {"login":"admin","password":"..."}, ответ 200: {"token":"...","login":"admin"}
+   POST .../api/v1/admin/auth/logout.php     — сброс session-токена в БД, Authorization: Bearer <токен из login>
+   В приложении: Профиль -> Заявки (админ) — сначала экран входа администратора; резервно меню «Секрет из config.php».
+
+   Администраторы в БД: выполните sql/migrate_admin_accounts.sql (создаёт admin_accounts и логин admin с паролем ChangeMe_Admin1! — смените пароль на production).
+   Подробный чеклист (SQL, curl, веб admin-web, сценарии в приложении): docs/testing_admin.md
+   Веб-интерфейс заявок (браузер): откройте .../admin-web/login.php относительно корня public (см. testing_admin.md §4).
+   PDF сметы из веб-админки: .../admin-web/request_pdf.php?id=<id заявки> (нужен вход в admin-web); зависимости в backend/vendor/: если команды «composer» нет, на сервере из каталога backend выполните «bash scripts/install_composer_deps.sh» или «php composer.phar install» (см. docs/testing_admin.md §2).
 
    Для откосов и дополнительных элементов выполните:
    sql/schema_catalog_materials.sql
-   Скрипт создаёт catalog_materials и загружает стартовые позиции с ценой 0.
-   Перед production замените цены и изображения на реальные.
+   Скрипт создаёт catalog_materials и загружает позиции из docs/catalogs (цены 0 — замените перед production).
+   Повторный запуск INSERT обновляет строки по sku (ON DUPLICATE KEY UPDATE).
 
    Для сохранения смет выполните:
    sql/schema_estimates.sql
 
    Для тестового прайса работ выполните:
    sql/schema_work_prices.sql
+   Если таблица work_prices уже была без картинок: sql/migrate_work_prices_image_path.sql (колонка image_path для админки и API).
 
-4) Цепочка:
+   Веб-админка может загружать изображения в public/catalog_uploads/ — каталог должен быть доступен веб-серверу на запись (создаётся при первой загрузке).
    - request-sms.php сохраняет код в таблице sms_otp и шлёт SMS через smsc.ru;
    - verify-phone.php:
        * существующий пользователь -> новый token;

@@ -9,6 +9,7 @@ class EstimateCalculationInput {
     this.windowCount = 0,
     this.cornerLengthLm = 0,
     this.sealingLengthLm = 0,
+    this.cuttingWastePercent = 0,
   });
 
   final double facadeAreaM2;
@@ -18,9 +19,22 @@ class EstimateCalculationInput {
   final double cornerLengthLm;
   final double sealingLengthLm;
 
+  /// Запас на подрезку по площади фасада, % (0–50). Учитывается в **нетто** площади для панелей/м² и работ `facade_area_m2`.
+  final double cuttingWastePercent;
+
   double get netFacadeAreaM2 {
     final double net = facadeAreaM2 - openingAreaM2;
     return net > 0 ? net : 0;
+  }
+
+  /// Нетто площадь с учётом запаса (для пересчёта количества по площади).
+  double get netFacadeAreaWithWasteM2 {
+    final double net = netFacadeAreaM2;
+    if (net <= 0) {
+      return 0;
+    }
+    final double w = cuttingWastePercent.clamp(0, 50);
+    return net * (1 + w / 100);
   }
 }
 
@@ -61,6 +75,18 @@ class EstimateLine {
   }
 
   double get price {
+    final Object? override = item.raw['line_unit_price_rub'];
+    if (override != null) {
+      final double p = override is num
+          ? override.toDouble()
+          : double.tryParse(
+                  override.toString().replaceAll(',', '.').trim(),
+                ) ??
+              0;
+      if (p > 0) {
+        return p;
+      }
+    }
     final String raw = item.price ?? '';
     final String normalized = raw
         .replaceAll(RegExp(r'[^0-9,.]'), '')
@@ -92,28 +118,30 @@ class EstimateLine {
     return EstimateLine(item: item, quantity: quantity ?? this.quantity);
   }
 
-  int quantityForArea(double areaM2) {
-    if (areaM2 <= 0) {
+  int quantityForArea(EstimateCalculationInput calc) {
+    if (calc.netFacadeAreaM2 <= 0) {
       return quantity;
     }
+    final double areaEff = calc.netFacadeAreaWithWasteM2;
     if (item.category == 'work') {
-      return EstimateService.quantityForWork(
-        item,
-        EstimateCalculationInput(facadeAreaM2: areaM2),
-      );
+      return EstimateService.quantityForWork(item, calc);
     }
     final String rawArea = '${item.raw['area_m2'] ?? ''}'
         .replaceAll(',', '.')
         .trim();
     final double panelArea = double.tryParse(rawArea) ?? 0;
+    int q;
     if (panelArea > 0) {
-      return (areaM2 / panelArea).ceil().clamp(1, 999999);
+      q = (areaEff / panelArea).ceil().clamp(1, 999999);
+    } else {
+      final String unit = (item.unit ?? '').toLowerCase();
+      if (unit.contains('м²') || unit.contains('м2')) {
+        q = areaEff.ceil().clamp(1, 999999);
+      } else {
+        return quantity;
+      }
     }
-    final String unit = (item.unit ?? '').toLowerCase();
-    if (unit.contains('м²') || unit.contains('м2')) {
-      return areaM2.ceil().clamp(1, 999999);
-    }
-    return quantity;
+    return EstimateService.roundQuantityToPackage(q, item.raw);
   }
 }
 
@@ -155,11 +183,8 @@ abstract final class EstimateService {
         .toList(growable: false);
   }
 
-  /// Примечание к строке работы (попадает в `raw_json` при сохранении сметы).
+  /// Примечание к позиции (материал или работа), в `raw_json` при сохранении сметы.
   static void updateWorkLineNote(EstimateLine line, String note) {
-    if (line.item.category != 'work') {
-      return;
-    }
     final String trimmed = note.trim();
     final CatalogItem next = line.item.withMergedRaw(
       rawPatch: <String, dynamic>{'line_note': trimmed},
@@ -172,14 +197,26 @@ abstract final class EstimateService {
     required double percent,
     required double fixedRub,
   }) {
-    if (line.item.category != 'work') {
-      return;
-    }
     final CatalogItem next = line.item.withMergedRaw(
       rawPatch: <String, dynamic>{
         'line_discount_percent': percent <= 0 ? 0 : percent.clamp(0, 100),
         'line_discount_fixed_rub': fixedRub <= 0 ? 0 : fixedRub,
       },
+    );
+    replaceLineItem(line, next);
+  }
+
+  /// Цена за единицу согласованная вручную; [unitPriceRub] null или ≤0 — снять, брать цену из каталога.
+  static void updateLineUnitPrice(EstimateLine line, double? unitPriceRub) {
+    if (unitPriceRub == null || unitPriceRub <= 0) {
+      final CatalogItem next = line.item.withMergedRaw(
+        removeRawKeys: const <String>['line_unit_price_rub'],
+      );
+      replaceLineItem(line, next);
+      return;
+    }
+    final CatalogItem next = line.item.withMergedRaw(
+      rawPatch: <String, dynamic>{'line_unit_price_rub': unitPriceRub},
     );
     replaceLineItem(line, next);
   }
@@ -200,7 +237,7 @@ abstract final class EstimateService {
     final String calcRule = '${item.raw['calc_rule'] ?? ''}'.trim();
     switch (calcRule) {
       case 'facade_area_m2':
-        return _ceilPositive(input.netFacadeAreaM2);
+        return _ceilPositive(input.netFacadeAreaWithWasteM2);
       case 'fixed_once':
         return 1;
       case 'opening_perimeter_lm':
@@ -227,6 +264,22 @@ abstract final class EstimateService {
       return 1;
     }
     return value.ceil().clamp(1, 999999);
+  }
+
+  /// Округление вверх до кратности **упаковки** (`package_qty` ≥ 2 в `raw` каталога).
+  static int roundQuantityToPackage(int quantity, Map<String, dynamic> raw) {
+    if (quantity < 1) {
+      return quantity;
+    }
+    final Object? v = raw['package_qty'];
+    if (v == null) {
+      return quantity;
+    }
+    final int p = v is int ? v : int.tryParse(v.toString().trim()) ?? 0;
+    if (p < 2) {
+      return quantity;
+    }
+    return ((quantity + p - 1) ~/ p) * p;
   }
 
   static void updateQuantity(EstimateLine line, int quantity) {
@@ -257,11 +310,11 @@ abstract final class EstimateService {
     lines.value = List<EstimateLine>.from(estimateLines);
   }
 
-  static int applyArea(double areaM2) {
+  static int applyArea(EstimateCalculationInput calc) {
     int changed = 0;
     lines.value = lines.value
         .map((EstimateLine line) {
-          final int nextQuantity = line.quantityForArea(areaM2);
+          final int nextQuantity = line.quantityForArea(calc);
           if (nextQuantity != line.quantity) {
             changed += 1;
             return line.copyWith(quantity: nextQuantity);

@@ -177,6 +177,7 @@ abstract final class EstimateShareText {
     add('Окна, шт', 'window_count');
     add('Углы, м', 'corner_length_lm');
     add('Примыкания, м', 'sealing_length_lm');
+    add('Запас на подрезку, %', 'cutting_waste_percent');
 
     final Object? openings = c['openings'];
     if (openings is List && openings.isNotEmpty) {
@@ -250,19 +251,17 @@ abstract final class EstimateShareText {
     if (note.isNotEmpty) {
       out.writeln('   Примечание: $note');
     }
-    if (line.item.category == 'work') {
-      final double pct = _readDouble(line.item.raw['line_discount_percent']);
-      final double fix = _readDouble(line.item.raw['line_discount_fixed_rub']);
-      if (pct > 0 || fix > 0) {
-        final List<String> bits = <String>[];
-        if (pct > 0) {
-          bits.add('${pct.toStringAsFixed(0)}%');
-        }
-        if (fix > 0) {
-          bits.add(money(fix));
-        }
-        out.writeln('   Скидка на работу: ${bits.join(' + ')}');
+    final double pct = _readDouble(line.item.raw['line_discount_percent']);
+    final double fix = _readDouble(line.item.raw['line_discount_fixed_rub']);
+    if (pct > 0 || fix > 0) {
+      final List<String> bits = <String>[];
+      if (pct > 0) {
+        bits.add('${pct.toStringAsFixed(0)}%');
       }
+      if (fix > 0) {
+        bits.add(money(fix));
+      }
+      out.writeln('   Скидка на позицию: ${bits.join(' + ')}');
     }
   }
 
@@ -276,19 +275,17 @@ abstract final class EstimateShareText {
     if (note.isNotEmpty) {
       out.writeln('   Примечание: $note');
     }
-    if (item.category == 'work') {
-      final double pct = _readDouble(item.raw['line_discount_percent']);
-      final double fix = _readDouble(item.raw['line_discount_fixed_rub']);
-      if (pct > 0 || fix > 0) {
-        final List<String> bits = <String>[];
-        if (pct > 0) {
-          bits.add('${pct.toStringAsFixed(0)}%');
-        }
-        if (fix > 0) {
-          bits.add(money(fix));
-        }
-        out.writeln('   Скидка на работу: ${bits.join(' + ')}');
+    final double pct = _readDouble(item.raw['line_discount_percent']);
+    final double fix = _readDouble(item.raw['line_discount_fixed_rub']);
+    if (pct > 0 || fix > 0) {
+      final List<String> bits = <String>[];
+      if (pct > 0) {
+        bits.add('${pct.toStringAsFixed(0)}%');
       }
+      if (fix > 0) {
+        bits.add(money(fix));
+      }
+      out.writeln('   Скидка на позицию: ${bits.join(' + ')}');
     }
     if (item.sku != null && item.sku!.trim().isNotEmpty) {
       out.writeln('   арт. ${item.sku}');
