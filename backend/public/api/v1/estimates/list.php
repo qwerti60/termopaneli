@@ -14,12 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
-    $userId = tp_estimates_auth_user_id();
-    if ($userId === null) {
-        tp_json_response(401, ['error' => 'Недействительный токен']);
-        exit;
-    }
     $pdo = tp_pdo();
+    $userId = tp_estimates_require_user($pdo);
     $st = $pdo->prepare(
         'SELECT id, title, status, total_amount, raw_json, created_at, updated_at
          FROM estimates

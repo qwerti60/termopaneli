@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap_web.php';
 tp_admin_web_require_include('admin_estimates.php');
+tp_admin_web_require_include('admin_audit_log.php');
 
 $pdo = tp_admin_web_require_login();
 
@@ -23,6 +24,8 @@ if ($res !== true) {
     header('Location: admin_estimates.php?err=' . rawurlencode($msg), true, 303);
     exit;
 }
+
+tp_admin_audit_log_write($pdo, 'estimate_delete', 'estimate', $id > 0 ? $id : null, null);
 
 header('Location: admin_estimates.php?ok=1', true, 303);
 exit;

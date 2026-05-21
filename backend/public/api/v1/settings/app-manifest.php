@@ -10,11 +10,15 @@ declare(strict_types=1);
  *   "version": 1,
  *   "company_pdf": { ... те же поля, что в company-for-pdf.php ... },
  *   "user_agreement_url": "...",
- *   "privacy_policy_url": ""
+ *   "privacy_policy_url": "",
+ *   "smartcalc_url": ""
  * }
  *
  * Опционально в config.php:
- *   'app_manifest' => [ 'privacy_policy_url' => 'https://...' ],
+ *   'app_manifest' => [
+ *     'privacy_policy_url' => 'https://...',
+ *     'smartcalc_url' => 'https://...', // SmartCalc для WebView в приложении (PRO)
+ *   ],
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
 require_once dirname(__DIR__, 3) . '/include/company_pdf_defaults.php';
@@ -37,12 +41,21 @@ try {
         }
     }
 
+    $smartcalc = '';
+    if (is_array($appManifest) && isset($appManifest['smartcalc_url'])) {
+        $s = $appManifest['smartcalc_url'];
+        if (is_string($s)) {
+            $smartcalc = trim($s);
+        }
+    }
+
     header('Cache-Control: public, max-age=300');
     tp_json_response(200, [
         'version' => 1,
         'company_pdf' => $companyPdf,
         'user_agreement_url' => $companyPdf['user_agreement_url'] ?? '',
         'privacy_policy_url' => $privacy,
+        'smartcalc_url' => $smartcalc,
     ]);
 } catch (Throwable) {
     tp_json_response(500, ['error' => 'Ошибка чтения настроек']);

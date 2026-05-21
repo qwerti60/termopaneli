@@ -40,6 +40,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  Future<void> _openSubscriptionScreen() async {
+    await AppRouter.pushSubscription(context);
+    if (!mounted) {
+      return;
+    }
+    await _refreshProfile();
+  }
+
   Future<void> _refreshProfile() async {
     setState(() {
       _loading = true;
@@ -320,8 +328,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             TextButton(
-                              onPressed: () =>
-                                  AppRouter.pushSubscription(context),
+                              onPressed: _openSubscriptionScreen,
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.white,
                               ),
@@ -355,8 +362,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(width: 12),
                             TextButton(
-                              onPressed: () =>
-                                  AppRouter.pushSubscription(context),
+                              onPressed: _openSubscriptionScreen,
                               style: TextButton.styleFrom(
                                 backgroundColor: AppColors.pageBackground,
                                 foregroundColor: AppColors.headingText,
@@ -453,8 +459,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.card_membership_outlined,
                       title: 'Управление подпиской',
                       subtitle: 'PRO и тарифы',
-                      onTap: () => AppRouter.pushSubscription(context),
+                      onTap: () async {
+                        await _openSubscriptionScreen();
+                      },
                     ),
+                    if (_profile != null)
+                      _MenuItem(
+                        icon: Icons.functions_outlined,
+                        title: 'SmartCalc',
+                        subtitle: _profile!.isPro
+                            ? 'Расчёт во встроенном браузере (PRO)'
+                            : 'Доступно с подпиской PRO',
+                        onTap: () async {
+                          if (_profile?.isPro != true) {
+                            await _openSubscriptionScreen();
+                            return;
+                          }
+                          if (!context.mounted) {
+                            return;
+                          }
+                          await AppRouter.pushSmartCalc(context);
+                        },
+                      ),
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),

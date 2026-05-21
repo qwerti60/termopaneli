@@ -9,11 +9,15 @@ class AppManifest {
     required this.companyPdfMap,
     required this.userAgreementUrl,
     required this.privacyPolicyUrl,
+    this.smartCalcUrl = '',
   });
 
   final Map<String, dynamic> companyPdfMap;
   final String userAgreementUrl;
   final String privacyPolicyUrl;
+
+  /// URL SmartCalc для WebView (PRO). Задаётся в `config.php` → `app_manifest.smartcalc_url`.
+  final String smartCalcUrl;
 }
 
 /// Публичный манифест приложения (один запрос вместо разрозненных URL).
@@ -67,10 +71,13 @@ abstract final class AppManifestApiService {
           '${decoded['user_agreement_url'] ?? ''}'.trim();
       final String privacyPolicyUrl =
           '${decoded['privacy_policy_url'] ?? ''}'.trim();
+      final String smartCalcUrl =
+          '${decoded['smartcalc_url'] ?? ''}'.trim();
       final AppManifest manifest = AppManifest(
         companyPdfMap: companyPdfMap,
         userAgreementUrl: userAgreementUrl,
         privacyPolicyUrl: privacyPolicyUrl,
+        smartCalcUrl: smartCalcUrl,
       );
       _cache = manifest;
       _cachedAt = DateTime.now();

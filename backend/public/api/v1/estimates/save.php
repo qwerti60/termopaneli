@@ -60,12 +60,8 @@ try {
         exit;
     }
 
-    $userId = tp_estimates_auth_user_id();
-    if ($userId === null) {
-        tp_json_response(401, ['error' => 'Недействительный токен']);
-        exit;
-    }
     $pdo = tp_pdo();
+    $userId = tp_estimates_require_user($pdo);
     $pdo->beginTransaction();
 
     $estPct = 0.0;

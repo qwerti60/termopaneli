@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:termopaneli_app/config/api_config.dart';
+import 'package:termopaneli_app/services/api_user_blocked.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 
 class PhoneVerifyResult {
@@ -76,6 +77,10 @@ abstract final class AuthApiService {
           )
           .timeout(const Duration(seconds: 15));
       if (res.statusCode == 401) {
+        await SessionService.clearToken();
+        return false;
+      }
+      if (ApiUserBlocked.isUserBlockedResponse(res)) {
         await SessionService.clearToken();
         return false;
       }

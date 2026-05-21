@@ -7,6 +7,7 @@ declare(strict_types=1);
  * Ответ 200 — сессия действительна; 401 — нет.
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
+require_once dirname(__DIR__, 3) . '/include/user_bearer_guard.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     tp_json_response(405, ['error' => 'Method Not Allowed']);
@@ -21,12 +22,13 @@ if ($token === null || $token === '') {
 
 try {
     $pdo = tp_pdo();
-    $sql = 'SELECT p.id FROM user_profiles p
-            WHERE p.token = :token';
-    $st = $pdo->prepare($sql);
-    $st->execute(['token' => $token]);
-    if ($st->fetch() === false) {
+    $u = tp_user_resolve_bearer($pdo);
+    if ($u === null) {
         tp_json_response(401, ['error' => 'Недействительный токен']);
+        exit;
+    }
+    if ($u['blocked']) {
+        tp_json_user_blocked();
         exit;
     }
     tp_json_response(200, ['valid' => true]);

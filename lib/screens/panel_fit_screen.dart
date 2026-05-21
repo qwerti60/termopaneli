@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:gal/gal.dart';
@@ -12,14 +13,17 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:termopaneli_app/painting/facade_mask_clipper.dart';
 import 'package:termopaneli_app/painting/facade_mask_stroke_painter.dart';
+import 'package:termopaneli_app/models/user_profile.dart';
 import 'package:termopaneli_app/painting/house_template_painter.dart';
 import 'package:termopaneli_app/routes/routes.dart';
+import 'package:termopaneli_app/services/profile_api_service.dart';
+import 'package:termopaneli_app/services/session_service.dart';
 
 /// **§8 + §9 MVP**: фото или шаблон дома, текстура панели из каталога; **несколько**
 /// замкнутых областей обводки (текстура внутри объединения контуров). Маски шаблонов
 /// хранятся отдельно по индексу силуэта ([SharedPreferences] `panel_fit_tpl_mask_*`).
 ///
-/// Камера, ИИ, серверные шаблоны — **§16** / **«На потом»**.
+/// Камера — выбор «Камера» в листе источника фото; ИИ, серверные шаблоны — **§16** / **«На потом»**.
 class PanelFitScreen extends StatefulWidget {
   const PanelFitScreen({
     super.key,
@@ -213,6 +217,38 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
   }
 
   Future<void> _bootstrap() async {
+    final String? authToken = await SessionService.getToken();
+    if (authToken != null && authToken.isNotEmpty) {
+      try {
+        final UserProfile? me = await ProfileApiService.fetchMe();
+        if (!mounted) {
+          return;
+        }
+        final String? after = await SessionService.getToken();
+        final bool sessionEnded =
+            me == null && (after == null || after.isEmpty);
+        if (sessionEnded) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Сессия недействительна или аккаунт заблокирован. '
+                  'Примерка доступна без входа в аккаунт.',
+                ),
+              ),
+            );
+            Navigator.of(context).maybePop();
+          });
+          return;
+        }
+      } catch (_) {
+        // Нет сети или профиль недоступен — примерку можно продолжить локально.
+      }
+    }
+
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
     String? texUrl;
@@ -289,10 +325,45 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
     });
   }
 
-  Future<void> _pickFromGallery() async {
+  /// Копирует выбранный/снятый кадр в каталог приложения и подставляет как фон примерки.
+  Future<void> _commitPickedImage(XFile x) async {
+    final Directory dir = await getApplicationDocumentsDirectory();
+    final String destName = 'panel_fit_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final File dest = File('${dir.path}/$destName');
+    await File(x.path).copy(dest.path);
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (_templateIndex != null && _hasPersistableMask) {
+      await prefs.setString(
+        _prefsKeyTemplateMask(_templateIndex!),
+        _encodeMaskPolygons(_polygonsSnapshotForPrefs()),
+      );
+    }
+    await prefs.remove(_prefsKeyTemplate);
+    await prefs.remove(_prefsKeyMask);
+    final String? old = prefs.getString(_prefsKeyImage);
+    if (old != null && old.isNotEmpty && old != dest.path) {
+      final File oldFile = File(old);
+      if (await oldFile.exists()) {
+        await oldFile.delete();
+      }
+    }
+    await prefs.setString(_prefsKeyImage, dest.path);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _imageFile = dest;
+      _templateIndex = null;
+      _maskPolygons.clear();
+      _currentStroke.clear();
+      _maskEditMode = false;
+    });
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? x = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: 1920,
         maxHeight: 1920,
         imageQuality: 82,
@@ -300,44 +371,47 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
       if (x == null || !mounted) {
         return;
       }
-      final Directory dir = await getApplicationDocumentsDirectory();
-      final String destName = 'panel_fit_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final File dest = File('${dir.path}/$destName');
-      await File(x.path).copy(dest.path);
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      if (_templateIndex != null && _hasPersistableMask) {
-        await prefs.setString(
-          _prefsKeyTemplateMask(_templateIndex!),
-          _encodeMaskPolygons(_polygonsSnapshotForPrefs()),
-        );
-      }
-      await prefs.remove(_prefsKeyTemplate);
-      await prefs.remove(_prefsKeyMask);
-      final String? old = prefs.getString(_prefsKeyImage);
-      if (old != null && old.isNotEmpty && old != dest.path) {
-        final File oldFile = File(old);
-        if (await oldFile.exists()) {
-          await oldFile.delete();
-        }
-      }
-      await prefs.setString(_prefsKeyImage, dest.path);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _imageFile = dest;
-        _templateIndex = null;
-        _maskPolygons.clear();
-        _currentStroke.clear();
-        _maskEditMode = false;
-      });
+      await _commitPickedImage(x);
     } catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не удалось выбрать фото: $e')),
+        SnackBar(content: Text('Не удалось получить фото: $e')),
       );
+    }
+  }
+
+  Future<void> _showPhotoSourcePicker() async {
+    if (!mounted) {
+      return;
+    }
+    final ImageSource? choice = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Галерея'),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+              if (!kIsWeb)
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Камера'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (choice != null && mounted) {
+      await _pickImage(choice);
     }
   }
 
@@ -810,8 +884,8 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
                   return _TemplateChip(
                     label: 'Фото',
                     selected: _imageFile != null,
-                    onTap: _pickFromGallery,
-                    child: const Icon(Icons.photo_library_outlined, size: 32),
+                    onTap: _showPhotoSourcePicker,
+                    child: const Icon(Icons.add_a_photo_outlined, size: 32),
                   );
                 }
                 final int t = i - 1;
@@ -835,14 +909,14 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         const Text(
-                          'Выберите шаблон выше или загрузите фото',
+                          'Выберите шаблон выше или возьмите фото из галереи / с камеры',
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
                         FilledButton.icon(
-                          onPressed: _pickFromGallery,
-                          icon: const Icon(Icons.photo_library_outlined),
-                          label: const Text('Выбрать фото'),
+                          onPressed: _showPhotoSourcePicker,
+                          icon: const Icon(Icons.add_a_photo_outlined),
+                          label: const Text('Фото: галерея или камера'),
                         ),
                       ],
                     ),
@@ -951,8 +1025,8 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: _pickFromGallery,
-                      child: const Text('Другое фото'),
+                      onPressed: _showPhotoSourcePicker,
+                      child: const Text('Другое фото…'),
                     ),
                   ),
                 ],

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap_web.php';
 tp_admin_web_require_include('admin_catalog_materials.php');
+tp_admin_web_require_include('admin_audit_log.php');
 
 $pdo = tp_admin_web_require_login();
 
@@ -26,6 +27,8 @@ if ($res !== true) {
     echo is_string($res) ? $res : 'Ошибка';
     exit;
 }
+
+tp_admin_audit_log_write($pdo, 'catalog_material_delete', 'material', $id > 0 ? $id : null, null);
 
 header('Location: catalog_materials.php', true, 303);
 exit;

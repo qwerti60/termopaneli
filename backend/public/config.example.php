@@ -54,6 +54,7 @@ return [
      */
     'app_manifest' => [
         // 'privacy_policy_url' => 'https://.../privacy.html',
+        // 'smartcalc_url' => 'https://.../smartcalc', // WebView в приложении для PRO (см. GET settings/app-manifest.php)
     ],
     /**
      * true — в JSON при 500 в поле message возвращается текст исключения (только для отладки).

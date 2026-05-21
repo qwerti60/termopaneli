@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap_web.php';
 tp_admin_web_require_include('admin_auth.php');
+tp_admin_web_require_include('admin_audit_log.php');
 
 $pdo = tp_pdo();
+$loginSnapshot = (string) ($_SESSION['admin_web_login'] ?? '');
 $bearer = (string) ($_SESSION['admin_web_token'] ?? '');
 if ($bearer !== '') {
     $cfg = tp_config();
@@ -18,6 +20,10 @@ if ($bearer !== '') {
             $st->execute([$session['id']]);
         }
     }
+}
+
+if ($loginSnapshot !== '') {
+    tp_admin_audit_log_write($pdo, 'admin_logout', null, null, null, $loginSnapshot);
 }
 
 $_SESSION = [];

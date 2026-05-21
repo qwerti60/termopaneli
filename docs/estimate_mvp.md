@@ -1,6 +1,6 @@
 # Смета MVP
 
-**Быстрый указатель последних этапов** (в файле ниже идёт общая сводка «Что реализовано», затем хронология): [**подробный чеклист «что тестировать»**](#mvp-testing-checklist) · [**примерка: маска, галерея, шаринг**](#mvp-panel-fit-mask-export) · [**ЛК администратора (план §7)**](#mvp-admin-lk-stage5) · [**проверка админки (SQL, curl, Flutter)**](testing_admin.md) · [реквизиты PDF с API](#mvp-company-pdf-api) · [предпросмотр PDF](#mvp-pdf-preview) · [скидка на смету в админке и карточках](#mvp-admin-discount) · [скидка: сохранение и списки](#mvp-estimate-discount-persist) · [app-manifest](#mvp-app-manifest) · [профиль с API](#mvp-profile-api) · [личный кабинет (ЛК)](#mvp-lk) · [карточка: размеры перед сметой](#mvp-product-dimensions) · [запас на подрезку и упаковка (п. 5.2)](#mvp-estimate-5-2-waste) · [гостевой режим и вход](#mvp-guest-auth).
+**Быстрый указатель последних этапов** (в файле ниже идёт общая сводка «Что реализовано», затем хронология): [**подробный чеклист «что тестировать»**](#mvp-testing-checklist) · [**примерка: маска, галерея, шаринг**](#mvp-panel-fit-mask-export) · [**ЛК администратора (план §7)**](#mvp-admin-lk-stage5) · [**проверка админки (SQL, curl, Flutter)**](testing_admin.md) · [реквизиты PDF с API](#mvp-company-pdf-api) · [предпросмотр PDF](#mvp-pdf-preview) · [скидка на смету в админке и карточках](#mvp-admin-discount) · [скидка: сохранение и списки](#mvp-estimate-discount-persist) · [app-manifest](#mvp-app-manifest) · [профиль с API](#mvp-profile-api) · [**подписка PRO (заглушка оплаты)**](#mvp-subscription-pro) · [личный кабинет (ЛК)](#mvp-lk) · [карточка: размеры перед сметой](#mvp-product-dimensions) · [запас на подрезку и упаковка (п. 5.2)](#mvp-estimate-5-2-waste) · [гостевой режим и вход](#mvp-guest-auth).
 
 *Раздел с полным заголовком «Скидка на смету в админке и карточках заявок» стоит в **конце** хронологии; в поиске по файлу введите, например:* `Скидка на смету в админке` *или якорь* `#mvp-admin-discount`*.*
 
@@ -94,7 +94,7 @@
 <a id="mvp-lk"></a>
 ### Личный кабинет (ЛК)
 
-Центральный экран — **`lib/screens/profile_screen.dart`** (заголовок в UI: «Личный кабинет»): разделы **Сметы и заявки**, **Профиль**, **Сервисы**; для подписчика PRO — блок по полю **`is_pro`** из **`GET .../profile/me.php`**; выход — подтверждение, затем **`POST .../auth/logout.php`** (сброс токена в БД) и **`SessionService.clearToken()`** через **`AppRouter.logoutToGuestCatalog`**.
+Центральный экран — **`lib/screens/profile_screen.dart`** (заголовок в UI: «Личный кабинет»): разделы **Сметы и заявки**, **Профиль**, **Сервисы**; для подписчика PRO — блок по полю **`is_pro`** из **`GET .../profile/me.php`** (перед ответом сервер может синхронизировать флаг с таблицей **`user_subscriptions`**); пункт **«Управление подпиской»** — экран тарифов, **заглушка оплаты** и **отмена подписки** (см. [#mvp-subscription-pro](#mvp-subscription-pro)); при входе в аккаунте — пункт **«SmartCalc»** (WebView при PRO, иначе переход к оформлению подписки); выход — подтверждение, затем **`POST .../auth/logout.php`** (сброс токена в БД) и **`SessionService.clearToken()`** через **`AppRouter.logoutToGuestCatalog`**.
 
 **Экраны и маршруты** (константы в `lib/routes/routes.dart`, навигация через `lib/routes/app_router.dart`):
 
@@ -108,6 +108,7 @@
 | Смета и расчёт (переход из меню) | `/estimate` | `lib/screens/estimate_screen.dart` |
 | Дом | `/home` | `lib/screens/home_screen.dart` |
 | Управление подпиской | `/subscription` | `lib/screens/subscription_screen.dart` |
+| SmartCalc (PRO, WebView) | `/smart-calc` | `lib/screens/smart_calc_screen.dart` |
 
 **Эндпоинты API**, с которыми связан ЛК (базовый префикс: **`API_BASE_URL`** + `/api/v1/...`):
 
@@ -124,8 +125,11 @@
 | **POST** | `admin/auth/logout.php` | Выход админа: инвалидация session-токена в БД; тот же **`Bearer`**, что выдал **`login`**. |
 | **GET** | `admin/requests/list.php` | Список заявок; **`Bearer`** = **`admin_api_token`** из **`config.php`** **или** токен после **`login`**. |
 | **POST** | `admin/requests/status.php` | Смена статуса заявки; тот же **`Bearer`**, что для **`list.php`**. |
+| **GET** | `subscription/status.php` | Статус подписки и PRO; **`Authorization: Bearer`**. |
+| **POST** | `subscription/checkout.php` | JSON **`plan_code`**; пока эквайринг не подключён — **200** с **`ok: false`**, **`code: acquiring_not_configured`** и запись события в **`subscription_payment_events`**. |
+| **POST** | `subscription/cancel.php` | Отмена активной подписки; **`Authorization: Bearer`**. |
 
-**БД:** флаг PRO — **`user_profiles.is_pro`** (`backend/sql/migrate_user_profiles_is_pro.sql`, в актуальном **`backend/sql/schema_auth.sql`** колонка уже в **CREATE**).
+**БД:** флаг PRO — **`user_profiles.is_pro`** (`backend/sql/migrate_user_profiles_is_pro.sql`, в актуальном **`backend/sql/schema_auth.sql`** колонка уже в **CREATE**); подписки и журнал событий оплаты — **`user_subscriptions`**, **`subscription_payment_events`** (**`backend/sql/migrate_user_subscriptions.sql`**; в **`schema_auth.sql`** — в **CREATE** для новых установок).
 
 **Вне приложения:** кнопка канала Telegram ведёт на `https://t.me/facade_panel` (`url_launcher`).
 
@@ -396,7 +400,7 @@
 <a id="mvp-profile-api"></a>
 ## Что сделано в этапе «Профиль с API (чтение)»
 
-- **`backend/public/api/v1/profile/me.php`**: **GET** — по Bearer-токену отдаётся `id`, `phone`, `first_name`, `last_name`, `middle_name`, `email`, **`display_name`** (собрано из ФИО; при пустых полях — «Пользователь»); без токена или при недействительном токене — **401** (токен в приложении при 401 сбрасывается).
+- **`backend/public/api/v1/profile/me.php`**: **GET** — по Bearer-токену отдаётся `id`, `phone`, `first_name`, `last_name`, `middle_name`, `email`, **`display_name`** (собрано из ФИО; при пустых полях — «Пользователь»); без токена или при недействительном токене — **401** (токен в приложении при 401 сбрасывается). Если учётная запись **заблокирована** в веб-админке (**`user_profiles.is_blocked`**, миграция **`migrate_user_profiles_is_blocked.sql`**), то **403** и JSON с **`"code":"user_blocked"`** — приложение сбрасывает токен и закрывает доступ к сохранению смет и заявкам до разблокировки.
 - **`lib/models/user_profile.dart`**, **`lib/services/profile_api_service.dart`**: разбор ответа и вызов с заголовком `Authorization`.
 - **`lib/screens/profile_screen.dart`**: вместо заглушки «Иван» — загрузка профиля, отображение ФИО, телефона (формат +7), email; состояния загрузки и ошибки с кнопкой **«Повторить»**; без токена — приглашение войти; иконка **вход** / **выход** (выход с подтверждением — **`AppRouter.logoutToGuestCatalog`**, каталог в гостевом режиме).
 
@@ -406,10 +410,22 @@
 ## Что сделано в этапе «Редактирование профиля по API»
 
 - **`backend/public/api/v1/profile/update.php`**: **POST** JSON (`last_name`, `first_name`, `middle_name`, `email`) с **`Authorization: Bearer`**, валидация как при регистрации (фамилия и имя непустые, email через `FILTER_VALIDATE_EMAIL`, длина ФИО до 100 символов); **телефон не обновляется**; ответ **200** в том же формате, что **GET** `profile/me.php`; при пустом/неверном токене — **401**; при ошибках валидации — **400** с полем `message`.
-- **`lib/services/profile_api_service.dart`**: метод **`updateProfile`**; при **401** — сброс токена.
+- **`lib/services/profile_api_service.dart`**: метод **`updateProfile`**; при **401** — сброс токена; при **403** с **`code: user_blocked`** — сброс токена (аккаунт заблокирован в веб-админке).
 - **`lib/screens/my_data_screen.dart`**: загрузка профиля, поля фамилия / имя / отчество / email, телефон **только для чтения** с подсказкой про смену номера позже; кнопка **«Сохранить»**; без токена при входе на экран — snackbar и **назад**.
 - **`lib/screens/profile_screen.dart`**: пункт **«Мои данные»** без токена — snackbar; после успешного сохранения на экране данных — обновление шапки профиля.
 - **`backend/README_API.txt`**: строка про **POST** `profile/update.php`.
+
+<a id="mvp-subscription-pro"></a>
+## Что сделано в этапе «Подписка PRO: статус, заглушка оплаты, отмена, админка»
+
+- **БД:** **`backend/sql/migrate_user_subscriptions.sql`** — таблицы **`user_subscriptions`** и **`subscription_payment_events`**; актуальный **`backend/sql/schema_auth.sql`** содержит те же **CREATE** для новых установок.
+- **PHP:** **`backend/public/include/subscription_plans.php`** (тарифы **`1m`** / **`3m`** / **`6m`** / **`1y`**), **`backend/public/include/subscriptions_repo.php`** (активная подписка, истечение, синхронизация **`user_profiles.is_pro`**, отмена, логирование событий).
+- **API:** **`backend/public/api/v1/subscription/status.php`**, **`checkout.php`** (заглушка + событие **`checkout_stub`**), **`cancel.php`**; **`profile/me.php`** — перед ответом обновление **`is_pro`** по подписке.
+- **Веб-админка:** **`backend/public/include/admin_subscriptions.php`**, **`backend/public/admin-web/admin_subscribers.php`**, **`admin_subscription_events.php`** (фильтр **`?user_id=`**); пункт меню **«Подписчики»** в **`bootstrap_web.php`**.
+- **Клиент:** **`lib/models/subscription_status.dart`**, **`lib/services/subscription_api_service.dart`**, **`lib/screens/subscription_screen.dart`** (статус, диалог оплаты-заглушки, отмена); из **`profile_screen.dart`** после закрытия экрана подписки — обновление профиля.
+- **SmartCalc (PRO):** **`GET .../settings/app-manifest.php`** — поле **`smartcalc_url`** (из **`config.php` → `app_manifest.smartcalc_url`**); **`lib/screens/smart_calc_screen.dart`** — **`webview_flutter`**, доступ после проверки **`is_pro`**; пункт **«SmartCalc»** в **`profile_screen.dart`**; маршрут **`/smart-calc`** в **`routes.dart`** / **`app_router.dart`**.
+
+Для сервера: выполнить **`migrate_user_subscriptions.sql`**, залить перечисленные PHP и страницы **`admin-web`**; см. **`docs/testing_admin.md`** §1 и §4. Для SmartCalc: в **`config.php`** задать **`app_manifest.smartcalc_url`** (HTTPS).
 
 <a id="mvp-catalog-db"></a>
 ## Что сделано в этапе «Каталог в БД (откосы и доп. материалы)»

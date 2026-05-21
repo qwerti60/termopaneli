@@ -11,6 +11,7 @@ declare(strict_types=1);
  * Код должен быть ранее сохранён через request-sms.php (серверная отправка SMS).
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
+require_once dirname(__DIR__, 3) . '/include/user_bearer_guard.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     tp_json_response(405, ['error' => 'Method Not Allowed']);
@@ -53,14 +54,20 @@ try {
         }
     }
 
-    $st = $pdo->prepare('SELECT id FROM user_profiles WHERE phone = ?');
+    $st = $pdo->prepare('SELECT id, COALESCE(is_blocked, 0) AS is_blocked FROM user_profiles WHERE phone = ?');
     $st->execute([$phone]);
-    $profileRow = $st->fetch();
+    $profileRow = $st->fetch(PDO::FETCH_ASSOC);
     if ($profileRow === false) {
         $pdo->commit();
         tp_json_response(200, [
             'is_new_user' => true,
         ]);
+        exit;
+    }
+
+    if ((int) ($profileRow['is_blocked'] ?? 0) === 1) {
+        $pdo->rollBack();
+        tp_json_user_blocked();
         exit;
     }
 

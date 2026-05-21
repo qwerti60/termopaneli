@@ -8,9 +8,11 @@
 
 ## 1. SQL на сервере
 
-1. Выполнить **`backend/sql/migrate_admin_accounts.sql`** на той же БД, что использует **`backend/public/config.php`**.
-2. Скрипт **идемпотентен**: повторный запуск не дублирует логин **`admin`** (используется **`INSERT IGNORE`**).
-3. После миграции в таблице **`admin_accounts`** есть учётная запись:
+1. Выполнить **`backend/sql/migrate_admin_accounts.sql`** на той же БД, что использует **`backend/public/config.php`**. Скрипт **идемпотентен** для логина **`admin`**: используется **`INSERT IGNORE`**.
+2. Для **блокировки пользователей приложения** (колонка **`user_profiles.is_blocked`**, кнопки в **`admin_users.php`**) выполните **`backend/sql/migrate_user_profiles_is_blocked.sql`**.
+3. Для **журнала действий** в веб-админке выполните **`backend/sql/migrate_admin_audit_log.sql`** (таблица **`admin_audit_log`**; **`CREATE TABLE IF NOT EXISTS`**).
+4. Для **подписок PRO** (таблицы **`user_subscriptions`**, **`subscription_payment_events`**, пункт меню «Подписчики») выполните **`backend/sql/migrate_user_subscriptions.sql`**.
+5. После миграции **`admin_accounts`** учётная запись по умолчанию:
    - **логин:** `admin`
    - **пароль по умолчанию:** `ChangeMe_Admin1!`  
    На **production** сразу смените пароль: сгенерируйте хеш в PHP (`password_hash('новый_пароль', PASSWORD_DEFAULT)`) и выполните **`UPDATE admin_accounts SET password_hash = '...' WHERE login = 'admin'`**.
@@ -30,7 +32,7 @@
 - обновлённые **`api/v1/admin/requests/list.php`** и **`status.php`**;
 - **`include/admin_estimate_pdf.php`** — сборка HTML и PDF (Dompdf) для **`admin-web/request_pdf.php`**;
 - **`include/admin_catalog_media.php`** — загрузка JPEG/PNG/WebP в **`catalog_uploads/`**;
-- **`include/admin_catalog_materials.php`**, **`include/admin_catalog_panels.php`**, **`include/admin_work_prices.php`**, **`include/admin_estimates.php`** — списки/обновление каталогов для веб-админки и **все сохранённые сметы** (`admin_estimates.php`);
+- **`include/admin_catalog_materials.php`**, **`include/admin_catalog_panels.php`**, **`include/admin_work_prices.php`**, **`include/admin_estimates.php`**, **`include/admin_audit_log.php`**, **`include/admin_users.php`**, **`include/admin_subscriptions.php`** — списки/обновление каталогов для веб-админки, **все сохранённые сметы** (`admin_estimates.php`), журнал, пользователи и **подписчики / журнал оплат**;
 - **`admin-web/`** — HTML-интерфейс админки (см. §4 ниже).
 
 **Где лежит `vendor/`:** код ищет **`vendor/autoload.php`** сначала в **родителе** каталога сайта (как в репозитории: **`backend/vendor`** при структуре `backend/public/...`), затем **внутри** корня сайта (**`tp_api/vendor`**, если весь `public` развёрнут как `tp_api/`). Достаточно одного из двух вариантов.
@@ -110,7 +112,7 @@ curl -sS -X POST "<API>/api/v1/admin/auth/logout.php" \
 Минимальный **браузерный** UI на том же хосте, что и API (корень сайта обычно указывает на **`public/`**). Статическое **руководство для пользователя и менеджера** по мобильному приложению лежит в **`admin-web/app_user_guide.html`** (внизу левого меню админки есть ссылка «Руководство по приложению», открывается в новой вкладке).
 
 1. Откройте **`https://<хост>/…/admin-web/login.php`** — путь зависит от развёртывания (рядом с **`api/`** внутри `public`).
-2. Войдите логином **`admin`** и паролем из миграции → откроется **`requests.php`**: слева меню (**Заявки**, **Сметы (все)**, **Панели**, **Материалы**, **Работы**, **Прочее**). В разделе заявок — таблица, фильтры по статусу, кнопка **OK** у строки меняет статус (тот же **`UPDATE`**, что и **`status.php`**). Ссылка **«Просмотр сметы»** открывает **`request_view.php?id=…`**. На экране просмотра — **«Скачать PDF»** → **`request_pdf.php?id=…`**. Раздел **Сметы (все)** — **`admin_estimates.php`**: таблица **`estimates`** с контактом пользователя, кнопка **Удалить** (POST **`admin_estimate_delete.php`** + CSRF; каскадом удаляются позиции и **`estimate_requests`**).
+2. Войдите логином **`admin`** и паролем из миграции → откроется **`requests.php`**: слева меню (**Заявки**, **Сметы (все)**, **Панели**, **Материалы**, **Работы**, **Пользователи**, **Подписчики**, **Журнал**, **Прочее**). В разделе заявок — таблица, фильтры по статусу, кнопка **OK** у строки меняет статус (тот же **`UPDATE`**, что и **`status.php`**). Ссылка **«Просмотр сметы»** открывает **`request_view.php?id=…`**. На экране просмотра — **«Скачать PDF»** → **`request_pdf.php?id=…`**. Раздел **Сметы (все)** — **`admin_estimates.php`**: таблица **`estimates`** с контактом пользователя, кнопка **Удалить** (POST **`admin_estimate_delete.php`** + CSRF; каскадом удаляются позиции и **`estimate_requests`**). **Пользователи** — **`admin_users.php`**: список клиентов, колонка блокировки, кнопки **заблокировать** / **разблокировать** (нужна миграция **`migrate_user_profiles_is_blocked.sql`**; события пишутся в **`admin_audit_log`**). **Подписчики** — **`admin_subscribers.php`**: пользователи с **`is_pro = 1`** или активной строкой в **`user_subscriptions`**; ссылка **«Журнал оплат»** ведёт на **`admin_subscription_events.php`** (таблица **`subscription_payment_events`**, фильтр **`?user_id=`**); нужна миграция **`migrate_user_subscriptions.sql`**. **Журнал** — **`admin_journal.php`** (нужна миграция **`migrate_admin_audit_log.sql`**).
 3. **Панели** — **`catalog_panels.php`**: таблица **`thermo_panel_catalog`** (как в **`GET …/catalog/list.php?category=panel`**). Редактирование — **`catalog_panel_edit.php`** (поля по **`DESCRIBE`** на вашей БД).
 4. **Материалы** — **`catalog_materials.php`** / **`catalog_edit.php`** (таблица **`catalog_materials`**).
 5. **Работы** — **`catalog_work_prices.php`** / **`catalog_work_edit.php`** (таблица **`work_prices`**; для картинок выполните **`backend/sql/migrate_work_prices_image_path.sql`** при обновлении существующей БД).
@@ -138,6 +140,10 @@ curl -sS -X POST "<API>/api/v1/admin/auth/logout.php" \
 | Схема таблицы | `backend/sql/schema_admin_accounts.sql` |
 | Проверка Bearer (+ сессия веб) | `backend/public/include/admin_auth.php` |
 | Сервис заявок (список, деталь, статус) | `backend/public/include/admin_requests_service.php` |
+| Журнал админ-действий | `backend/public/include/admin_audit_log.php`, **`backend/sql/migrate_admin_audit_log.sql`**, **`backend/sql/schema_admin_audit_log.sql`** |
+| Список пользователей (админ) | `backend/public/include/admin_users.php`, `backend/public/admin-web/admin_users.php` |
+| Подписки PRO (список подписчиков, журнал оплат) | `backend/sql/migrate_user_subscriptions.sql`, `backend/public/include/admin_subscriptions.php`, `backend/public/admin-web/admin_subscribers.php`, `backend/public/admin-web/admin_subscription_events.php` |
+| Веб-страница журнала | `backend/public/admin-web/admin_journal.php` |
 | Разбор скидки (`calculation`) | `backend/public/include/admin_estimate_calc.php` |
 | Вход (общий код) | `backend/public/include/admin_login_verify.php` |
 | Веб-админка | `backend/public/admin-web/` (… `admin_estimates.php`, `admin_estimate_delete.php`, `catalog_material_new.php`, `catalog_material_delete.php`, …) |
@@ -166,4 +172,5 @@ curl -sS -X POST "<API>/api/v1/admin/auth/logout.php" \
 | Веб **`admin-web`** сразу редирект на логин | Сессии PHP: права на **`session.save_path`**, не открывайте по другому домену без учёта cookie. |
 | Раздел **Панели** в админке — ошибка про таблицу | На сервере должна существовать **`thermo_panel_catalog`** (как для **`GET …/catalog/list.php?category=panel`**). |
 | Раздел **Работы** — ошибка про колонку | Выполните **`backend/sql/migrate_work_prices_image_path.sql`** (или полный **`schema_work_prices.sql`** на новой установке). |
-| **503** при «Скачать PDF» | В каталоге **`backend/`** не выполнен **`composer install`** — нет **`vendor/`**; см. §2. |
+| Раздел **Журнал** — ошибка про таблицу | Выполните **`backend/sql/migrate_admin_audit_log.sql`**. |
+| Раздел **Подписчики** / журнал оплат — ошибка про таблицу | Выполните **`backend/sql/migrate_user_subscriptions.sql`**. |

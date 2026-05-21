@@ -53,6 +53,8 @@
 	<string>LaunchScreen</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Чтобы выбрать фото фасада для примерки панелей.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Чтобы снять фасад для примерки панелей.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Чтобы сохранить результат примерки в «Фото».</string>
 	<key>UIMainStoryboardFile</key>

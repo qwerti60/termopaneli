@@ -24,7 +24,7 @@ function tp_admin_web_require_include(string $file): void
         echo "Не найден файл на сервере:\n{$path}\n\n";
         echo 'Залейте каталог include/ из репозитория (backend/public/include/) в ' . TP_PUBLIC_ROOT
             . "/include/ — на одном уровне с папками admin-web и api.\n"
-            . "Нужны как минимум: api_bootstrap.php, admin_auth.php, admin_requests_service.php, admin_login_verify.php, admin_catalog_media.php, admin_catalog_materials.php, admin_catalog_panels.php, admin_work_prices.php, admin_estimates.php.\n";
+            . "Нужны как минимум: api_bootstrap.php, admin_auth.php, admin_requests_service.php, admin_login_verify.php, admin_catalog_media.php, admin_catalog_materials.php, admin_catalog_panels.php, admin_work_prices.php, admin_estimates.php, admin_audit_log.php, admin_users.php.\n";
         exit;
     }
     require_once $path;
@@ -89,7 +89,7 @@ function tp_admin_web_require_login(): PDO
 /**
  * Общая вёрстка веб-админки: левое меню + область контента (см. также комментарий к файлу вверху).
  *
- * @param 'requests'|'estimates'|'panels'|'materials'|'works'|'more' $activeNav
+ * @param 'requests'|'estimates'|'panels'|'materials'|'works'|'users'|'subscribers'|'journal'|'more' $activeNav
  */
 function tp_admin_web_layout_start(string $pageTitle, string $activeNav, ?string $adminLogin = null): void
 {
@@ -99,6 +99,9 @@ function tp_admin_web_layout_start(string $pageTitle, string $activeNav, ?string
         'panels' => ['Панели', 'catalog_panels.php'],
         'materials' => ['Материалы', 'catalog_materials.php'],
         'works' => ['Работы', 'catalog_work_prices.php'],
+        'users' => ['Пользователи', 'admin_users.php'],
+        'subscribers' => ['Подписчики', 'admin_subscribers.php'],
+        'journal' => ['Журнал', 'admin_journal.php'],
         'more' => ['Прочее', 'admin_misc.php'],
     ];
     header('Content-Type: text/html; charset=utf-8');

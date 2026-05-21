@@ -23,6 +23,7 @@ import 'package:termopaneli_app/services/profile_api_service.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 import 'package:termopaneli_app/screens/search_screen.dart';
 import 'package:termopaneli_app/screens/subscription_screen.dart';
+import 'package:termopaneli_app/screens/smart_calc_screen.dart';
 import 'package:termopaneli_app/screens/panel_fit_screen.dart';
 import 'package:termopaneli_app/routes/panel_fit_args.dart';
 import 'package:termopaneli_app/screens/window_slopes_screen.dart';
@@ -78,6 +79,11 @@ abstract final class AppRouter {
       case AppRoutes.subscription:
         return MaterialPageRoute<void>(
           builder: (_) => const SubscriptionScreen(),
+          settings: settings,
+        );
+      case AppRoutes.smartCalc:
+        return MaterialPageRoute<void>(
+          builder: (_) => const SmartCalcScreen(),
           settings: settings,
         );
       case AppRoutes.catalog:
@@ -210,6 +216,10 @@ abstract final class AppRouter {
 
   static Future<T?> pushSubscription<T extends Object?>(BuildContext context) {
     return Navigator.pushNamed<T>(context, AppRoutes.subscription);
+  }
+
+  static Future<T?> pushSmartCalc<T extends Object?>(BuildContext context) {
+    return Navigator.pushNamed<T>(context, AppRoutes.smartCalc);
   }
 
   static Future<T?> pushCatalog<T extends Object?>(BuildContext context) {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap_web.php';
 tp_admin_web_require_include('admin_requests_service.php');
+tp_admin_web_require_include('admin_audit_log.php');
 
 $pdo = tp_admin_web_require_login();
 
@@ -22,6 +23,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_status'])) {
     $newSt = trim((string) ($_POST['status'] ?? ''));
     $upd = tp_admin_update_request_status($pdo, $rid, $newSt);
     if ($upd === true) {
+        tp_admin_audit_log_write(
+            $pdo,
+            'request_status',
+            'estimate_request',
+            $rid > 0 ? $rid : null,
+            'status=' . $newSt
+        );
         $preserve = trim((string) ($_POST['filter_status'] ?? ''));
         $q = [];
         if ($preserve !== '') {

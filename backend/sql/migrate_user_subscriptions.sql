@@ -1,33 +1,5 @@
--- Таблицы для API регистрации/входа (tp_api).
--- Токен хранится в user_profiles.token.
-
-CREATE TABLE IF NOT EXISTS user_profiles (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  phone VARCHAR(11) NOT NULL COMMENT 'формат 7XXXXXXXXXX',
-  last_name VARCHAR(100) NOT NULL,
-  first_name VARCHAR(100) NOT NULL,
-  middle_name VARCHAR(100) NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  is_pro TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = активна подписка PRO',
-  is_blocked TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = вход и действия с аккаунтом запрещены',
-  token CHAR(64) NULL DEFAULT NULL,
-  token_updated_at DATETIME NULL DEFAULT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_user_profiles_phone (phone),
-  UNIQUE KEY uq_user_profiles_token (token)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS sms_otp (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  phone VARCHAR(11) NOT NULL,
-  code VARCHAR(6) NOT NULL,
-  expires_at DATETIME NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_sms_otp_phone_code (phone, code),
-  KEY idx_sms_otp_expires (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Подписки PRO и журнал попыток оплаты (до подключения эквайринга — события checkout_stub).
+-- Повторный запуск безопасен (CREATE TABLE IF NOT EXISTS).
 
 CREATE TABLE IF NOT EXISTS user_subscriptions (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -52,7 +24,7 @@ CREATE TABLE IF NOT EXISTS subscription_payment_events (
   subscription_id INT UNSIGNED NULL DEFAULT NULL,
   plan_code VARCHAR(16) NOT NULL DEFAULT '',
   amount_rub DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  event_type VARCHAR(48) NOT NULL,
+  event_type VARCHAR(48) NOT NULL COMMENT 'checkout_stub, subscription_cancelled, …',
   detail VARCHAR(512) NULL DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

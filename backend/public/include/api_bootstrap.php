@@ -116,7 +116,9 @@ function tp_auth_user_id(): ?int
         return null;
     }
     $pdo = tp_pdo();
-    $st = $pdo->prepare('SELECT id FROM user_profiles WHERE token = ? LIMIT 1');
+    $st = $pdo->prepare(
+        'SELECT id FROM user_profiles WHERE token = ? AND COALESCE(is_blocked, 0) = 0 LIMIT 1'
+    );
     $st->execute([$token]);
     $row = $st->fetch();
     if ($row === false) {

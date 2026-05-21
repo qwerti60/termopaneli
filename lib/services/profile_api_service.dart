@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:termopaneli_app/config/api_config.dart';
 import 'package:termopaneli_app/models/user_profile.dart';
+import 'package:termopaneli_app/services/api_user_blocked.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 
 abstract final class ProfileApiService {
@@ -40,6 +41,10 @@ abstract final class ProfileApiService {
         )
         .timeout(const Duration(seconds: 20));
     if (res.statusCode == 401) {
+      await SessionService.clearToken();
+      return null;
+    }
+    if (ApiUserBlocked.isUserBlockedResponse(res)) {
       await SessionService.clearToken();
       return null;
     }
@@ -110,6 +115,12 @@ abstract final class ProfileApiService {
     if (res.statusCode == 401) {
       await SessionService.clearToken();
       throw Exception('Сессия истекла. Войдите снова.');
+    }
+    if (ApiUserBlocked.isUserBlockedResponse(res)) {
+      await SessionService.clearToken();
+      throw Exception(
+        'Аккаунт заблокирован. Обратитесь в поддержку компании.',
+      );
     }
     if (res.statusCode != 200) {
       String msg = 'Ответ сервера ${res.statusCode}';

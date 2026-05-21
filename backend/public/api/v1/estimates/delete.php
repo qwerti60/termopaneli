@@ -30,13 +30,8 @@ try {
         exit;
     }
 
-    $userId = tp_estimates_auth_user_id();
-    if ($userId === null) {
-        tp_json_response(401, ['error' => 'Недействительный токен']);
-        exit;
-    }
-
     $pdo = tp_pdo();
+    $userId = tp_estimates_require_user($pdo);
     $st = $pdo->prepare('DELETE FROM estimates WHERE id = ? AND user_id = ? LIMIT 1');
     $st->execute([$estimateId, $userId]);
     if ($st->rowCount() !== 1) {

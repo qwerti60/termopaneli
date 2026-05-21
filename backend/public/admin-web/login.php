@@ -20,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         session_regenerate_id(true);
         $_SESSION['admin_web_token'] = $result['token'];
         $_SESSION['admin_web_login'] = $result['login'];
+        tp_admin_web_require_include('admin_audit_log.php');
+        tp_admin_audit_log_write(tp_pdo(), 'admin_login', null, null, null);
         header('Location: requests.php', true, 302);
         exit;
     }

@@ -16,6 +16,7 @@ declare(strict_types=1);
  * Ответ 200: тот же JSON, что у GET profile/me.php.
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
+require_once dirname(__DIR__, 3) . '/include/user_bearer_guard.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     tp_json_response(405, ['error' => 'Method Not Allowed']);
@@ -62,12 +63,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 try {
     $pdo = tp_pdo();
-    $exists = $pdo->prepare('SELECT 1 FROM user_profiles WHERE token = ? LIMIT 1');
-    $exists->execute([$token]);
-    if ($exists->fetchColumn() === false) {
-        tp_json_response(401, ['message' => 'Недействительный токен']);
-        exit;
-    }
+    tp_user_require_active_json($pdo);
 
     $st = $pdo->prepare(
         'UPDATE user_profiles

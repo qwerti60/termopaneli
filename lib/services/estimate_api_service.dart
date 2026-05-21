@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:termopaneli_app/config/api_config.dart';
+import 'package:termopaneli_app/services/api_user_blocked.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
 import 'package:termopaneli_app/services/estimate_service.dart';
 import 'package:termopaneli_app/services/session_service.dart';
@@ -115,6 +116,9 @@ class SavedEstimateItem {
 abstract final class EstimateApiService {
   EstimateApiService._();
 
+  static const String _blockedMessage =
+      'Аккаунт заблокирован. Обратитесь в поддержку компании.';
+
   static Uri _uri(String path, {String? token}) {
     final String base = ApiConfig.baseUrl.trim();
     if (base.isEmpty) {
@@ -168,6 +172,14 @@ abstract final class EstimateApiService {
           )
           .timeout(const Duration(seconds: 30));
 
+      if (ApiUserBlocked.isUserBlockedResponse(res)) {
+        await SessionService.clearToken();
+        return const SaveEstimateResult(
+          ok: false,
+          errorMessage: _blockedMessage,
+        );
+      }
+
       final dynamic data = _decodeBody(res.body);
       if (res.statusCode == 200 && data is Map<String, dynamic>) {
         final int? estimateId = int.tryParse('${data['estimate_id'] ?? ''}');
@@ -200,6 +212,11 @@ abstract final class EstimateApiService {
           },
         )
         .timeout(const Duration(seconds: 30));
+
+    if (ApiUserBlocked.isUserBlockedResponse(res)) {
+      await SessionService.clearToken();
+      throw Exception(_blockedMessage);
+    }
 
     if (res.statusCode != 200) {
       throw Exception('Ошибка загрузки смет: ${res.statusCode}');
@@ -247,6 +264,14 @@ abstract final class EstimateApiService {
             }),
           )
           .timeout(const Duration(seconds: 30));
+
+      if (ApiUserBlocked.isUserBlockedResponse(res)) {
+        await SessionService.clearToken();
+        return const SaveEstimateResult(
+          ok: false,
+          errorMessage: _blockedMessage,
+        );
+      }
 
       final dynamic data = _decodeBody(res.body);
       if (res.statusCode == 200) {
@@ -307,6 +332,14 @@ abstract final class EstimateApiService {
             }),
           )
           .timeout(const Duration(seconds: 30));
+
+      if (ApiUserBlocked.isUserBlockedResponse(res)) {
+        await SessionService.clearToken();
+        return const SaveEstimateResult(
+          ok: false,
+          errorMessage: _blockedMessage,
+        );
+      }
 
       final dynamic data = _decodeBody(res.body);
       if (res.statusCode == 200) {
