@@ -11,6 +11,10 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
+        // Если `flutter run` падает с «Could not GET … dl.google.com» / «No route to host»,
+        // зеркала часто помогают; при стабильном доступе к Google можно удалить первые два maven {}.
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         google()
         mavenCentral()
         gradlePluginPortal()

@@ -23,6 +23,7 @@ class UserProfile {
   static UserProfile fromJson(Map<String, dynamic> json) {
     final Object? rawPro = json['is_pro'];
     final bool pro = rawPro == true ||
+        (rawPro is num && rawPro != 0) ||
         rawPro == 1 ||
         rawPro == '1' ||
         rawPro == 'true';

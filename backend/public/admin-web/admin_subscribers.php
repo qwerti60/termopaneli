@@ -22,13 +22,14 @@ try {
 
 $adminLogin = (string) ($_SESSION['admin_web_login'] ?? '');
 
-tp_admin_web_layout_start('Подписчики', 'subscribers', $adminLogin !== '' ? $adminLogin : null);
+tp_admin_web_layout_start('Подписчики', 'subscriptions', $adminLogin !== '' ? $adminLogin : null);
 ?>
 <?php if ($tableErr !== '') { ?>
     <p class="err"><?= tp_admin_web_h($tableErr) ?></p>
 <?php } ?>
 <p class="meta">Пользователи с флагом <strong>PRO</strong> (<code>is_pro</code>) или с активной строкой в <code>user_subscriptions</code> (не просрочена). Оплата в приложении пока заглушка — события смотрите в <a href="admin_subscription_events.php">журнале оплат и подписок</a>.</p>
 <div class="toolbar">
+    <a class="btn secondary" href="subscriptions.php">← Подписки PRO</a>
     <a class="btn secondary" href="admin_subscription_events.php">Журнал оплат и подписок</a>
 </div>
 <table class="data">

@@ -3,6 +3,7 @@ import 'package:termopaneli_app/design/app_colors.dart';
 import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/models/user_profile.dart';
+import 'package:termopaneli_app/config/app_features.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
 import 'package:termopaneli_app/services/profile_api_service.dart';
 import 'package:termopaneli_app/services/session_service.dart';
@@ -54,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _error = null;
     });
     try {
-      final UserProfile? p = await ProfileApiService.fetchMe();
+      final UserProfile? p = await ProfileApiService.fetchMe(bustCache: true);
       if (!mounted) {
         return;
       }
@@ -439,8 +440,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _SectionCaption(title: 'Сервисы'),
                     _MenuItem(
                       icon: Icons.view_in_ar_outlined,
-                      title: 'Примерка (MVP)',
-                      subtitle: 'Фото + текстура; этап 6 плана',
+                      title: 'Дом/Примерка',
+                      subtitle: 'Фото, шаблон дома, маска, панель из каталога',
                       onTap: () => AppRouter.pushPanelFit(context),
                     ),
                     _MenuItem(
@@ -449,12 +450,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle: 'Каталог, материалы и работы',
                       onTap: () => AppRouter.pushEstimate(context),
                     ),
-                    _MenuItem(
-                      icon: Icons.home_outlined,
-                      title: 'Дом',
-                      subtitle: 'Подбор и оформление',
-                      onTap: () => AppRouter.pushHome(context),
-                    ),
+                    if (kHomeScreenEnabled)
+                      _MenuItem(
+                        icon: Icons.home_outlined,
+                        title: 'Дом',
+                        subtitle: 'Подбор и оформление',
+                        onTap: () => AppRouter.pushHome(context),
+                      ),
                     _MenuItem(
                       icon: Icons.card_membership_outlined,
                       title: 'Управление подпиской',
@@ -469,16 +471,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         title: 'SmartCalc',
                         subtitle: _profile!.isPro
                             ? 'Расчёт во встроенном браузере (PRO)'
-                            : 'Доступно с подпиской PRO',
+                            : 'Доступно с подпиской PRO (проверка на сервере)',
                         onTap: () async {
-                          if (_profile?.isPro != true) {
-                            await _openSubscriptionScreen();
-                            return;
-                          }
-                          if (!context.mounted) {
-                            return;
-                          }
+                          // Не ветвить по устаревшему _profile.isPro: после оформления подписки
+                          // экран SmartCalc сам запросит me.php и откроет WebView или экран PRO.
                           await AppRouter.pushSmartCalc(context);
+                          if (mounted) {
+                            await _refreshProfile();
+                          }
                         },
                       ),
                     const SizedBox(height: 16),

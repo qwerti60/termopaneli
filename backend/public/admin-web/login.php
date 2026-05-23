@@ -4,6 +4,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap_web.php';
 
 $error = '';
+$flashOk = '';
+if (isset($_GET['reset']) && (string) $_GET['reset'] === '1') {
+    $flashOk = 'Пароль изменён. Войдите с новым паролем.';
+} elseif (isset($_GET['pw']) && (string) $_GET['pw'] === '1') {
+    $flashOk = 'Пароль изменён. Войдите снова с новым паролем.';
+}
 
 if (isset($_SESSION['admin_web_token']) && is_string($_SESSION['admin_web_token']) && $_SESSION['admin_web_token'] !== '') {
     header('Location: requests.php', true, 302);
@@ -43,10 +49,14 @@ header('Content-Type: text/html; charset=utf-8');
         input[type=text], input[type=password] { width: 100%; box-sizing: border-box; padding: 0.5rem; margin-top: 0.25rem; }
         button { margin-top: 1.25rem; padding: 0.5rem 1rem; cursor: pointer; }
         .err { color: #b00020; margin-top: 1rem; }
+        .ok { color: #15803d; margin-top: 1rem; }
     </style>
 </head>
 <body>
     <h1>Вход администратора</h1>
+    <?php if ($flashOk !== '') { ?>
+        <p class="ok"><?= tp_admin_web_h($flashOk) ?></p>
+    <?php } ?>
     <?php if ($error !== '') { ?>
         <p class="err"><?= tp_admin_web_h($error) ?></p>
     <?php } ?>
@@ -57,5 +67,6 @@ header('Content-Type: text/html; charset=utf-8');
         <input id="password" name="password" type="password" required maxlength="256" value="">
         <button type="submit">Войти</button>
     </form>
+    <p style="margin-top:1.25rem;"><a href="login_reset.php">Забыли пароль? Сброс по коду из e-mail</a></p>
 </body>
 </html>

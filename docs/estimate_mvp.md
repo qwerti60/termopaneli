@@ -1,6 +1,6 @@
 # Смета MVP
 
-**Быстрый указатель последних этапов** (в файле ниже идёт общая сводка «Что реализовано», затем хронология): [**подробный чеклист «что тестировать»**](#mvp-testing-checklist) · [**примерка: маска, галерея, шаринг**](#mvp-panel-fit-mask-export) · [**ЛК администратора (план §7)**](#mvp-admin-lk-stage5) · [**проверка админки (SQL, curl, Flutter)**](testing_admin.md) · [реквизиты PDF с API](#mvp-company-pdf-api) · [предпросмотр PDF](#mvp-pdf-preview) · [скидка на смету в админке и карточках](#mvp-admin-discount) · [скидка: сохранение и списки](#mvp-estimate-discount-persist) · [app-manifest](#mvp-app-manifest) · [профиль с API](#mvp-profile-api) · [**подписка PRO (заглушка оплаты)**](#mvp-subscription-pro) · [личный кабинет (ЛК)](#mvp-lk) · [карточка: размеры перед сметой](#mvp-product-dimensions) · [запас на подрезку и упаковка (п. 5.2)](#mvp-estimate-5-2-waste) · [гостевой режим и вход](#mvp-guest-auth).
+**Быстрый указатель последних этапов** (в файле ниже идёт общая сводка «Что реализовано», затем хронология): [**подробный чеклист «что тестировать»**](#mvp-testing-checklist) · [**Дом/Примерка: маска, галерея, шаринг**](#mvp-panel-fit-mask-export) · [**ЛК администратора (план §7)**](#mvp-admin-lk-stage5) · [**проверка админки (SQL, curl, Flutter)**](testing_admin.md) · [реквизиты PDF с API](#mvp-company-pdf-api) · [предпросмотр PDF](#mvp-pdf-preview) · [скидка на смету в админке и карточках](#mvp-admin-discount) · [скидка: сохранение и списки](#mvp-estimate-discount-persist) · [app-manifest](#mvp-app-manifest) · [профиль с API](#mvp-profile-api) · [**подписка PRO (оформление без эквайринга)**](#mvp-subscription-pro) · [личный кабинет (ЛК)](#mvp-lk) · [карточка: размеры перед сметой](#mvp-product-dimensions) · [запас на подрезку и упаковка (п. 5.2)](#mvp-estimate-5-2-waste) · [гостевой режим и вход](#mvp-guest-auth).
 
 *Раздел с полным заголовком «Скидка на смету в админке и карточках заявок» стоит в **конце** хронологии; в поиске по файлу введите, например:* `Скидка на смету в админке` *или якорь* `#mvp-admin-discount`*.*
 
@@ -94,7 +94,7 @@
 <a id="mvp-lk"></a>
 ### Личный кабинет (ЛК)
 
-Центральный экран — **`lib/screens/profile_screen.dart`** (заголовок в UI: «Личный кабинет»): разделы **Сметы и заявки**, **Профиль**, **Сервисы**; для подписчика PRO — блок по полю **`is_pro`** из **`GET .../profile/me.php`** (перед ответом сервер может синхронизировать флаг с таблицей **`user_subscriptions`**); пункт **«Управление подпиской»** — экран тарифов, **заглушка оплаты** и **отмена подписки** (см. [#mvp-subscription-pro](#mvp-subscription-pro)); при входе в аккаунте — пункт **«SmartCalc»** (WebView при PRO, иначе переход к оформлению подписки); выход — подтверждение, затем **`POST .../auth/logout.php`** (сброс токена в БД) и **`SessionService.clearToken()`** через **`AppRouter.logoutToGuestCatalog`**.
+Центральный экран — **`lib/screens/profile_screen.dart`** (заголовок в UI: «Личный кабинет»): разделы **Сметы и заявки**, **Профиль**, **Сервисы**; для подписчика PRO — блок по полю **`is_pro`** из **`GET .../profile/me.php`** (перед ответом сервер может синхронизировать флаг с таблицей **`user_subscriptions`**); пункт **«Управление подпиской»** — экран тарифов, **оформление PRO без эквайринга** (кнопка «Перейти к оплате») и **отмена подписки** (см. [#mvp-subscription-pro](#mvp-subscription-pro)); при входе в аккаунте — пункт **«SmartCalc»** (WebView при PRO, иначе переход к оформлению подписки); пункт **«Дом/Примерка»** — экран **`PanelFitScreen`** (см. [#mvp-panel-fit-mask-export](#mvp-panel-fit-mask-export)); отдельный хаб **«Дом»** (`/home`, **`HomeScreen`**) по умолчанию выключен — флаг **`kHomeScreenEnabled`** в **`lib/config/app_features.dart`**; выход — подтверждение, затем **`POST .../auth/logout.php`** (сброс токена в БД) и **`SessionService.clearToken()`** через **`AppRouter.logoutToGuestCatalog`**.
 
 **Экраны и маршруты** (константы в `lib/routes/routes.dart`, навигация через `lib/routes/app_router.dart`):
 
@@ -106,7 +106,8 @@
 | Мои данные (ФИО, email; телефон только просмотр) | `/my-data` | `lib/screens/my_data_screen.dart` |
 | Заявки (админ) | `/admin-requests` (при отсутствии сохранённого Bearer — сначала **`/admin-login`**) | `lib/screens/admin_requests_screen.dart`, `admin_login_screen.dart` — пункт **всегда** в меню ЛК; Bearer после **`POST .../admin/auth/login.php`** или вручную **`admin_api_token`** из меню **«Секрет из config.php»**; хранение в **`SessionService`** (не пользовательский Bearer) |
 | Смета и расчёт (переход из меню) | `/estimate` | `lib/screens/estimate_screen.dart` |
-| Дом | `/home` | `lib/screens/home_screen.dart` |
+| Дом/Примерка | `/panel-fit` | `lib/screens/panel_fit_screen.dart` |
+| Дом (отдельный хаб «Мои фото» / «Наши дома»; по умолчанию выключен) | `/home` | `lib/screens/home_screen.dart` — флаг **`kHomeScreenEnabled`** в **`lib/config/app_features.dart`**; при `false` переход по **`/home`** открывает тот же экран, что **`/panel-fit`**, пункт в ЛК скрыт |
 | Управление подпиской | `/subscription` | `lib/screens/subscription_screen.dart` |
 | SmartCalc (PRO, WebView) | `/smart-calc` | `lib/screens/smart_calc_screen.dart` |
 
@@ -126,7 +127,7 @@
 | **GET** | `admin/requests/list.php` | Список заявок; **`Bearer`** = **`admin_api_token`** из **`config.php`** **или** токен после **`login`**. |
 | **POST** | `admin/requests/status.php` | Смена статуса заявки; тот же **`Bearer`**, что для **`list.php`**. |
 | **GET** | `subscription/status.php` | Статус подписки и PRO; **`Authorization: Bearer`**. |
-| **POST** | `subscription/checkout.php` | JSON **`plan_code`**; пока эквайринг не подключён — **200** с **`ok: false`**, **`code: acquiring_not_configured`** и запись события в **`subscription_payment_events`**. |
+| **POST** | `subscription/checkout.php` | JSON **`plan_code`**; без эквайринга — **200** **`ok: true`** только если нет активной подписки; иначе **409** **`already_subscribed`**; событие **`activated_no_acquiring`**. |
 | **POST** | `subscription/cancel.php` | Отмена активной подписки; **`Authorization: Bearer`**. |
 
 **БД:** флаг PRO — **`user_profiles.is_pro`** (`backend/sql/migrate_user_profiles_is_pro.sql`, в актуальном **`backend/sql/schema_auth.sql`** колонка уже в **CREATE**); подписки и журнал событий оплаты — **`user_subscriptions`**, **`subscription_payment_events`** (**`backend/sql/migrate_user_subscriptions.sql`**; в **`schema_auth.sql`** — в **CREATE** для новых установок).
@@ -416,14 +417,17 @@
 - **`backend/README_API.txt`**: строка про **POST** `profile/update.php`.
 
 <a id="mvp-subscription-pro"></a>
-## Что сделано в этапе «Подписка PRO: статус, заглушка оплаты, отмена, админка»
+## Что сделано в этапе «Подписка PRO: статус, оформление без эквайринга, отмена, админка»
 
 - **БД:** **`backend/sql/migrate_user_subscriptions.sql`** — таблицы **`user_subscriptions`** и **`subscription_payment_events`**; актуальный **`backend/sql/schema_auth.sql`** содержит те же **CREATE** для новых установок.
-- **PHP:** **`backend/public/include/subscription_plans.php`** (тарифы **`1m`** / **`3m`** / **`6m`** / **`1y`**), **`backend/public/include/subscriptions_repo.php`** (активная подписка, истечение, синхронизация **`user_profiles.is_pro`**, отмена, логирование событий).
-- **API:** **`backend/public/api/v1/subscription/status.php`**, **`checkout.php`** (заглушка + событие **`checkout_stub`**), **`cancel.php`**; **`profile/me.php`** — перед ответом обновление **`is_pro`** по подписке.
-- **Веб-админка:** **`backend/public/include/admin_subscriptions.php`**, **`backend/public/admin-web/admin_subscribers.php`**, **`admin_subscription_events.php`** (фильтр **`?user_id=`**); пункт меню **«Подписчики»** в **`bootstrap_web.php`**.
-- **Клиент:** **`lib/models/subscription_status.dart`**, **`lib/services/subscription_api_service.dart`**, **`lib/screens/subscription_screen.dart`** (статус, диалог оплаты-заглушки, отмена); из **`profile_screen.dart`** после закрытия экрана подписки — обновление профиля.
-- **SmartCalc (PRO):** **`GET .../settings/app-manifest.php`** — поле **`smartcalc_url`** (из **`config.php` → `app_manifest.smartcalc_url`**); **`lib/screens/smart_calc_screen.dart`** — **`webview_flutter`**, доступ после проверки **`is_pro`**; пункт **«SmartCalc»** в **`profile_screen.dart`**; маршрут **`/smart-calc`** в **`routes.dart`** / **`app_router.dart`**.
+- **PHP:** **`backend/public/include/subscription_plans.php`** (тарифы **`1m`** / **`3m`** / **`6m`** / **`1y`**), **`backend/public/include/subscriptions_repo.php`** (активация без оплаты, активная подписка, истечение, синхронизация **`user_profiles.is_pro`**, отмена, логирование событий).
+- **API:** **`backend/public/api/v1/subscription/status.php`**, **`checkout.php`** (без эквайринга — новая подписка только если нет активной; иначе **409**; событие **`activated_no_acquiring`**), **`cancel.php`**; **`profile/me.php`** — перед ответом обновление **`is_pro`** по подписке.
+- **Веб-админка:** **`backend/public/include/admin_subscriptions.php`** (список подписчиков, журнал, **сводка** `tp_admin_subscriptions_stats`), **`backend/public/admin-web/subscriptions.php`** (раздел «Подписки PRO»), **`admin_subscribers.php`**, **`admin_subscription_events.php`** (фильтр **`?user_id=`**); пункт меню **«Подписки PRO»** в **`bootstrap_web.php`**.
+- **Клиент:** **`lib/models/subscription_status.dart`**, **`lib/services/subscription_api_service.dart`**, **`lib/screens/subscription_screen.dart`** (статус, кнопка «Перейти к оплате», отмена); из **`profile_screen.dart`** после закрытия экрана подписки — обновление профиля.
+- **Повторное оформление:** пока на сервере есть **активная подписка** или в **`subscription/status.php`** уже **`is_pro`**, **`POST .../subscription/checkout.php`** отвечает **409** с **`code: "already_subscribed"`**. В приложении кнопка **«Перейти к оплате»** заблокирована; при попытке обойти — snackbar «сначала отмените текущую подписку…» (**`subscription_screen.dart`**).
+- **Локальный grace PRO (устойчивость к задержке `me.php`):** **`lib/services/pro_subscription_grace.dart`** (ключ в **`SharedPreferences`**). После **успешного** checkout (**`SubscriptionApiService.checkoutStub`**) на устройство выставляется окно **30 минут**. При **загрузке** экрана подписки, если уже есть активный PRO/подписка, выставляется **24 часа** (чтобы **SmartCalc** не пропадал, пока профиль догоняет сервер). **`SmartCalcScreen`** открывает WebView, если **`profile.is_pro`** **или** **`ProSubscriptionGrace.isActive()`**. Grace **сбрасывается** при успешной **отмене** подписки и при **очистке пользовательской сессии** (**`session_service.dart`**).
+- **SmartCalc (PRO):** **`GET .../settings/app-manifest.php`** — поле **`smartcalc_url`** (из **`config.php` → `app_manifest.smartcalc_url`**); **`lib/screens/smart_calc_screen.dart`** — **`webview_flutter`**, доступ после проверки **`is_pro` или grace** (см. выше); пункт **«SmartCalc»** в **`profile_screen.dart`**; маршрут **`/smart-calc`** в **`routes.dart`** / **`app_router.dart`**.
+- **Экран «Дом» (`/home`):** по умолчанию **скрыт** из ЛК; флаг **`kHomeScreenEnabled`** в **`lib/config/app_features.dart`**. При **`false`** именованный маршрут **`/home`** в **`app_router.dart`** открывает **`PanelFitScreen`** (тот же сценарий, что **`/panel-fit`**). Сценарий **«Редактирование»** / **«Наши дома»** (**`EditingScreen`**) доступен только из **`HomeScreen`** — при выключенном флаге из UI **не** вызывается.
 
 Для сервера: выполнить **`migrate_user_subscriptions.sql`**, залить перечисленные PHP и страницы **`admin-web`**; см. **`docs/testing_admin.md`** §1 и §4. Для SmartCalc: в **`config.php`** задать **`app_manifest.smartcalc_url`** (HTTPS).
 
@@ -474,7 +478,7 @@
 **Что тестировать** (кратко; дублирует **`docs/development_plan.md`**, прогресс **2026-05-16**): панель с **`area_m2`**, фасад 100 м², запас **5 %** → **`ceil(105 / area_m2)`** шт.; **0 %** → как раньше от 100 м². У тестовой строки каталога **`package_qty = 10`** — после **Рассчитать** количество кратно 10. Работа с **`facade_area_m2`** — количество растёт с запасом. **Сохранить** — в **`raw_json.calculation`** есть **`cutting_waste_percent`**; старая смета без ключа — в UI **0** %.
 
 <a id="mvp-panel-fit-mask-export"></a>
-## Что сделано в этапе «Примерка: несколько зон маски, снимок, шаринг»
+## Что сделано в этапе «Дом/Примерка: несколько зон маски, снимок, шаринг»
 
 **Сделано.**
 
@@ -578,6 +582,8 @@
 2. После входа: ФИО, телефон, email совпадают с **`GET .../profile/me.php`**; при **`is_pro = 1`** — отображение PRO (см. [#mvp-lk](#mvp-lk)).
 3. **Сохранённые сметы**, **Мои заявки** открываются; из заявки тап по смете ведёт на **`/estimate`**.
 4. **Заявки (админ):** пункт **всегда** в меню; без сохранённого Bearer — подпись про вход; тап → **`/admin-login`** → логин/пароль после **`migrate_admin_accounts.sql`** → список; **Выйти** в шапке — **`logout.php`** и очистка на устройстве; резерв: меню **«Секрет из config.php»** → **`admin_api_token`** → **Сохранить** → список. Подробно — **[`docs/testing_admin.md`](testing_admin.md)**.
+5. **Подписка PRO (без эквайринга):** **Профиль → Управление подпиской** — при отсутствии активной подписки кнопка **«Перейти к оплате»** активна; после успеха — **`me.php`** с **`is_pro`**, на экране подписки кнопка покупки **заблокирована**; повторный **checkout** с тем же аккаунтом — **409** на сервере / пояснение в UI. **Отмена** — **`is_pro`** снимается, grace очищается, оформление снова доступно. См. [#mvp-subscription-pro](#mvp-subscription-pro).
+6. **SmartCalc:** при **`is_pro`** или в пределах **локального grace** после оформления/обновления экрана подписки — открывается WebView; без **`smartcalc_url`** в манифесте — сообщение в приложении. После выхода из аккаунта — пункт ведёт на гостевой сценарий без PRO.
 
 ### Профиль: редактирование (**`profile/update.php`**)
 
@@ -631,12 +637,12 @@
 2. **PDF:** предпросмотр, кириллица, многостраничность, шапка/подвал, **fallback** без сети; **`company-for-pdf.php`** / **`company_pdf`** в **`config.php`**; **app-manifest** — **`user_agreement_url`** на регистрации.
 3. **Регистрация:** без галочки соглашения кнопка неактивна; с галочкой — успех; ссылка открывается в браузере.
 
-### Примерка панелей (MVP-минимум, §8)
+### Дом/Примерка панелей (MVP-минимум, §8)
 
-1. **Профиль → Сервисы → Примерка (MVP)** — открывается экран без краша.
+1. **Профиль → Сервисы → Дом/Примерка** — открывается экран без краша.
 2. **Выбрать фото** — изображение в превью; ползунок **Текстура** меняет плотность оверлея.
 3. **Другое фото** — замена файла; **Сбросить** — пустое состояние, файл в каталоге приложения удалён.
-4. Закрыть приложение и снова открыть **Примерка** — последнее фото восстанавливается (если не сбрасывали).
+4. Закрыть приложение и снова открыть **Дом/Примерка** — последнее фото восстанавливается (если не сбрасывали).
 5. **iOS** — при первом выборе фото системный запрос библиотеки (строка **`NSPhotoLibraryUsageDescription`**).
 6. Горизонтальный ряд: тап по **шаблону** (не «Фото») — силуэт дома в превью, оверлей текстуры; без сети работает.
 7. После шаблона — **Фото** / **Выбрать фото** — шаблон в prefs сброшен, фото подставляется.
@@ -658,7 +664,7 @@
 - **Смета, подвал (макет):** вкладка **«Материалы»** — длинная смета + подвал (площадь, запас, сохранённые сметы): **одна** прокрутка вниз, без **overflow**; вкладка **«Работы»** — длинный прайс + подвал без регресса.
 - **Профиль: редактирование:** залить **`profile/update.php`**; **Профиль → Мои данные** без входа — snackbar, экран не открывается; войти → **Мои данные** — поля совпадают с **GET** `me.php`; изменить ФИО/email → **Сохранить** — успех, возврат на профиль, шапка обновилась; **POST** `update.php` с неверным JSON или пустой фамилией — **400** и сообщение в приложении; телефон на экране не редактируется; повторное **Сохранить** без изменений — **200** (не должно сбрасывать сессию из‑за «0 строк обновлено»).
 - **Каталог в БД, фильтры API и поиск:** **[`docs/testing_catalog.md`](testing_catalog.md)** (§2 — накат SQL и **`package_qty`**; §4 п. 5 — **`package_qty`** в **`raw`**; §6 — картинки; §7–9 — приложение и **Поиск**). При ошибке **`list.php`** на **Каталоге** и **Поиске** — кнопка **«Повторить»** (прогресс **2026-05-21**).
-- **Примерка (экран):** несколько зон по контуру (**«Замкнуть область»**), сохранение **`v:2`** в prefs, перезапуск; **«В галерею»** / **«Поделиться»** — PNG без линии маски; разрешения ОС (см. [#mvp-panel-fit-mask-export](#mvp-panel-fit-mask-export)).
+- **Дом/Примерка (экран):** несколько зон по контуру (**«Замкнуть область»**), сохранение **`v:2`** в prefs, перезапуск; **«В галерею»** / **«Поделиться»** — PNG без линии маски; разрешения ОС (см. [#mvp-panel-fit-mask-export](#mvp-panel-fit-mask-export)).
 - **Скидка на смету (сохранение):** задать % и/или фикс → **Сохранить** → в БД у новой записи **`raw_json`** не пустой, внутри **`calculation.estimate_discount_*`**; **Редактировать** — значения скидки на месте; в списке/карточке/блоке «последняя смета» видна подпись «Скидка на смету: …».
 - **App-manifest:** `GET <API>/api/v1/settings/app-manifest.php` — 200, JSON с **`company_pdf`**, **`user_agreement_url`**; в **`config.php`** задать **`company_pdf.user_agreement_url`** на тестовый URL → перезапуск приложения не обязателен; на экране регистрации по ссылке «соглашение» должен открыться новый URL; PDF по-прежнему собирается (шапка из **`company_pdf`** манифеста или fallback на **company-for-pdf** при отсутствии манифеста).
 - Открыть каталог.
@@ -739,3 +745,4 @@
 - На экране предпросмотра проверить прокрутку и масштаб (pinch); печать — через системный **«Поделиться»** → приложение «Печать», если нужно.
 - **Реквизиты API:** в браузере или `curl` открыть `GET <API_BASE_URL>/api/v1/settings/company-for-pdf.php` — ответ 200, JSON с полями реквизитов; в `config.php` задать `company_pdf` → например другой `legal_name`, перезапустить не обязательно — повторно открыть PDF в приложении и убедиться, что шапка подтянула новое значение; с выключенным интернетом (или при 500 у endpoint) — в PDF **встроенный fallback** из приложения.
 - **Регистрация:** без галочки принятия соглашения **«Продолжить»** неактивна; с галочкой — успех; ссылка на соглашение открывается в браузере (`…/tp_api/agreement.html` относительно API или fallback).
+- **Подписка PRO:** без активной подписки — **«Перейти к оплате»** → успех → **`me.php`** с **`is_pro`**; кнопка повторной покупки **заблокирована**; **SmartCalc** открывается. При уже активной подписке повторный **checkout** на сервере **409** **`already_subscribed`**. **Отмена** → **`is_pro`** снят → оформление снова доступно. Подробнее — [#mvp-subscription-pro](#mvp-subscription-pro).

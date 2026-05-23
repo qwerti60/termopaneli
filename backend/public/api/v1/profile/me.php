@@ -51,7 +51,7 @@ try {
         exit;
     }
 
-    require_once dirname(__DIR__, 2) . '/include/subscriptions_repo.php';
+    require_once dirname(__DIR__, 3) . '/include/subscriptions_repo.php';
     $uid = (int) $row['id'];
     tp_subscription_refresh_is_pro($pdo, $uid);
     $stPro = $pdo->prepare('SELECT COALESCE(is_pro, 0) AS is_pro FROM user_profiles WHERE id = ? LIMIT 1');

@@ -89,7 +89,7 @@ function tp_admin_web_require_login(): PDO
 /**
  * Общая вёрстка веб-админки: левое меню + область контента (см. также комментарий к файлу вверху).
  *
- * @param 'requests'|'estimates'|'panels'|'materials'|'works'|'users'|'subscribers'|'journal'|'more' $activeNav
+ * @param 'requests'|'estimates'|'panels'|'materials'|'works'|'users'|'subscriptions'|'journal'|'more'|'pw' $activeNav
  */
 function tp_admin_web_layout_start(string $pageTitle, string $activeNav, ?string $adminLogin = null): void
 {
@@ -100,7 +100,7 @@ function tp_admin_web_layout_start(string $pageTitle, string $activeNav, ?string
         'materials' => ['Материалы', 'catalog_materials.php'],
         'works' => ['Работы', 'catalog_work_prices.php'],
         'users' => ['Пользователи', 'admin_users.php'],
-        'subscribers' => ['Подписчики', 'admin_subscribers.php'],
+        'subscriptions' => ['Подписки PRO', 'subscriptions.php'],
         'journal' => ['Журнал', 'admin_journal.php'],
         'more' => ['Прочее', 'admin_misc.php'],
     ];
@@ -167,7 +167,7 @@ function tp_admin_web_layout_start(string $pageTitle, string $activeNav, ?string
         <?php } ?>
         <div class="nav-foot">
             <?php if ($adminLogin !== null && $adminLogin !== '') { ?>
-                <div><?= tp_admin_web_h($adminLogin) ?></div>
+                <div><a href="admin_password.php"><?= tp_admin_web_h($adminLogin) ?></a></div>
             <?php } ?>
             <div class="nav-foot-guide"><a href="app_user_guide.html" target="_blank" rel="noopener">Руководство по приложению</a></div>
             <a href="logout.php">Выйти</a>

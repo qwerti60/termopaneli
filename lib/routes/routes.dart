@@ -8,6 +8,7 @@ abstract final class AppRoutes {
   static const String personalData = '/personal-data';
   static const String personalDataConfirm = '/personal-data-confirm';
   static const String profile = '/profile';
+  /// Если `kHomeScreenEnabled == false` (`lib/config/app_features.dart`), маршрут [home] открывает экран примерки вместо отдельного «Дом».
   static const String home = '/home';
   static const String editing = '/editing';
   static const String subscription = '/subscription';

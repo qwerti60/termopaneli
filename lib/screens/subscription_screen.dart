@@ -5,6 +5,7 @@ import 'package:termopaneli_app/design/app_text_styles.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/models/subscription_status.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
+import 'package:termopaneli_app/services/pro_subscription_grace.dart';
 import 'package:termopaneli_app/services/session_service.dart';
 import 'package:termopaneli_app/services/subscription_api_service.dart';
 
@@ -30,6 +31,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     _PlanData(code: '6m', title: 'Подписка на 6 месяцев', price: '1 999'),
     _PlanData(code: '1y', title: 'Подписка на 1 год', price: '3 999'),
   ];
+
+  /// Уже есть PRO / активная подписка — повторное оформление через checkout запрещено (см. API 409).
+  bool get _hasActiveProOrSubscription =>
+      _status != null && (_status!.isPro || _status!.subscription != null);
+
+  /// Блокировка кнопки «Перейти к оплате» (есть активный PRO, не гость и не экран ошибки).
+  bool get _purchaseButtonLocked =>
+      !_needsLogin &&
+      _error == null &&
+      !_loading &&
+      _hasActiveProOrSubscription;
 
   @override
   void initState() {
@@ -57,7 +69,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
     setState(() => _needsLogin = false);
     try {
-      final SubscriptionStatus? s = await SubscriptionApiService.fetchStatus();
+      final SubscriptionStatus? s =
+          await SubscriptionApiService.fetchStatus(bustCache: true);
       if (!mounted) {
         return;
       }
@@ -66,6 +79,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         _loading = false;
         _error = null;
       });
+      if (s != null && (s.isPro || s.subscription != null)) {
+        await ProSubscriptionGrace.grantMinutes(24 * 60);
+      }
     } catch (e) {
       if (!mounted) {
         return;
@@ -88,6 +104,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
       return;
     }
+    if (_hasActiveProOrSubscription) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Сначала отмените текущую подписку PRO, затем можно оформить новую.',
+          ),
+        ),
+      );
+      return;
+    }
     final _PlanData plan = _plans[_selectedIndex];
     setState(() => _checkoutBusy = true);
     final ({bool ok, String? code, String? message}) r =
@@ -100,10 +129,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         (r.ok
             ? 'Оплата прошла'
             : 'Онлайн-оплата пока недоступна. Обратитесь в офис или дождитесь подключения эквайринга.');
+    final String dialogTitle = r.ok
+        ? 'Готово'
+        : (r.code == 'already_subscribed' ? 'Подписка' : 'Оплата');
     await showDialog<void>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: Text(r.ok ? 'Готово' : 'Оплата'),
+        title: Text(dialogTitle),
         content: SingleChildScrollView(child: Text(text)),
         actions: [
           TextButton(
@@ -113,6 +145,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ],
       ),
     );
+    if (r.ok && mounted) {
+      await _load();
+    }
   }
 
   Future<void> _onCancelSubscription() async {
@@ -186,7 +221,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Онлайн-оплата в приложении пока не подключена: по кнопке «Перейти к оплате» вы увидите пояснение и запись уйдёт в журнал офиса.',
+                'Пока не подключён эквайринг: по кнопке «Перейти к оплате» подписка PRO оформляется сразу на выбранный срок (без списания денег).',
                 style: TextStyle(
                   color: Color(0xFF6B7280),
                   fontSize: AppTextSizes.s24,
@@ -197,51 +232,35 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Expanded(child: _buildBody()),
               Padding(
                 padding: const EdgeInsets.only(bottom: 14, top: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_status?.subscription != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: OutlinedButton(
-                          onPressed: _cancelBusy ? null : _onCancelSubscription,
-                          child: _cancelBusy
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Отменить подписку'),
-                        ),
-                      ),
-                    TextButton(
-                      onPressed: _checkoutBusy ? null : _onCheckout,
-                      style: TextButton.styleFrom(
-                        fixedSize: const Size(double.infinity, 33),
-                        padding: EdgeInsets.zero,
-                        alignment: Alignment.center,
-                        foregroundColor: AppColors.primaryButtonText,
-                        backgroundColor: AppColors.primaryButtonBackground,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(4)),
-                        ),
-                      ),
-                      child: _checkoutBusy
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'Перейти к оплате',
-                              textAlign: TextAlign.center,
-                              style: AppTextTheme.buttonLabel,
-                            ),
+                child: TextButton(
+                  onPressed:
+                      _checkoutBusy || _purchaseButtonLocked ? null : _onCheckout,
+                  style: TextButton.styleFrom(
+                    fixedSize: const Size(double.infinity, 33),
+                    padding: EdgeInsets.zero,
+                    alignment: Alignment.center,
+                    foregroundColor: AppColors.primaryButtonText,
+                    backgroundColor: _purchaseButtonLocked
+                        ? const Color(0xFF94A3B8)
+                        : AppColors.primaryButtonBackground,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
                     ),
-                  ],
+                  ),
+                  child: _checkoutBusy
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Перейти к оплате',
+                          textAlign: TextAlign.center,
+                          style: AppTextTheme.buttonLabel,
+                        ),
                 ),
               ),
             ],
@@ -286,38 +305,107 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
     }
     final ActiveSubscription? sub = _status?.subscription;
-    return ListView.separated(
-          itemCount: _plans.length + 1 + (sub != null ? 1 : 0),
-          separatorBuilder: (context, _) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            int offset = 0;
-            if (sub != null) {
-              if (index == 0) {
-                return _ActiveSubscriptionCard(sub: sub);
-              }
-              offset = 1;
-            }
-            final int i = index - offset;
-            if (i == _plans.length) {
-              return const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(
-                  'После подключения эквайринга оплата будет доступна здесь. Отмена подписки — кнопкой ниже списка тарифов.',
-                  style: TextStyle(
-                    color: AppColors.headingText,
-                    fontSize: AppTextSizes.s22,
-                  ),
+    final bool showProLite = _status?.isPro == true && sub == null;
+    final bool showCancel = _status != null &&
+        (_status!.isPro || _status!.subscription != null);
+    final bool blockNewSubscription =
+        !_needsLogin && _error == null && showCancel;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (sub != null) ...[
+            _ActiveSubscriptionCard(sub: sub),
+            const SizedBox(height: 10),
+          ] else if (showProLite) ...[
+            const _ProWithoutSubscriptionCard(),
+            const SizedBox(height: 10),
+          ],
+          if (blockNewSubscription) ...[
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: Text(
+                'При активной подписке PRO повторное оформление недоступно. Чтобы выбрать другой тариф, сначала отмените текущую подписку.',
+                style: TextStyle(
+                  color: Color(0xFF92400E),
+                  fontSize: AppTextSizes.s24,
+                  height: 1.35,
                 ),
-              );
-            }
-            final _PlanData plan = _plans[i];
-            return _PlanCard(
-              plan: plan,
+              ),
+            ),
+          ],
+          for (int i = 0; i < _plans.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _PlanCard(
+              plan: _plans[i],
               isSelected: _selectedIndex == i,
-              onSelect: () => setState(() => _selectedIndex = i),
-            );
-          },
-        );
+              onSelect: blockNewSubscription
+                  ? null
+                  : () => setState(() => _selectedIndex = i),
+            ),
+          ],
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: Text(
+              'После подключения эквайринга оплата будет списываться через платёжный шлюз. Отмена текущей подписки — кнопкой ниже.',
+              style: TextStyle(
+                color: AppColors.headingText,
+                fontSize: AppTextSizes.s22,
+              ),
+            ),
+          ),
+          if (showCancel) ...[
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: _cancelBusy ? null : _onCancelSubscription,
+              child: _cancelBusy
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Отменить подписку'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// PRO в профиле есть, а объект подписки в ответе API ещё не пришёл — не блокируем отмену.
+class _ProWithoutSubscriptionCard extends StatelessWidget {
+  const _ProWithoutSubscriptionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        border: Border.all(color: const Color(0xFF0369A1)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PRO активен',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: AppTextSizes.s36,
+              color: AppColors.headingText,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Статус подписки обновится при следующем запросе. Отмена — кнопкой ниже.',
+            style: TextStyle(fontSize: AppTextSizes.s24, color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -382,15 +470,16 @@ class _PlanCard extends StatelessWidget {
   const _PlanCard({
     required this.plan,
     required this.isSelected,
-    required this.onSelect,
+    this.onSelect,
   });
 
   final _PlanData plan;
   final bool isSelected;
-  final VoidCallback onSelect;
+  final VoidCallback? onSelect;
 
   @override
   Widget build(BuildContext context) {
+    final bool locked = onSelect == null;
     final Color cardBg =
         isSelected ? AppColors.pageBackground : AppColors.primaryButtonBackground;
     final Color cardBorder = isSelected ? AppColors.headingText : Colors.transparent;
@@ -400,56 +489,59 @@ class _PlanCard extends StatelessWidget {
     final Color buttonFg =
         isSelected ? AppColors.onAccent : AppColors.headingText;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
-        border: Border.all(color: cardBorder),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            plan.title,
-            style: TextStyle(
-              color: textColor,
-              fontSize: AppTextSizes.s44,
-              fontWeight: AppTextWeights.medium,
+    return Opacity(
+      opacity: locked ? 0.55 : 1,
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
+          border: Border.all(color: cardBorder),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              plan.title,
+              style: TextStyle(
+                color: textColor,
+                fontSize: AppTextSizes.s44,
+                fontWeight: AppTextWeights.medium,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                '${plan.price}₽',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: AppTextSizes.s42,
-                  fontWeight: AppTextWeights.medium,
-                ),
-              ),
-              Text(
-                ' за период',
-                style: TextStyle(color: textColor, fontSize: AppTextSizes.s28),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: onSelect,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  minimumSize: const Size(86, 36),
-                  backgroundColor: buttonBg,
-                  foregroundColor: buttonFg,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  '${plan.price}₽',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: AppTextSizes.s42,
+                    fontWeight: AppTextWeights.medium,
                   ),
                 ),
-                child: const Text('Выбрать', style: TextStyle(fontSize: AppTextSizes.s35)),
-              ),
-            ],
-          ),
-        ],
+                Text(
+                  ' за период',
+                  style: TextStyle(color: textColor, fontSize: AppTextSizes.s28),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: onSelect,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    minimumSize: const Size(86, 36),
+                    backgroundColor: buttonBg,
+                    foregroundColor: buttonFg,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                  ),
+                  child: const Text('Выбрать', style: TextStyle(fontSize: AppTextSizes.s35)),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

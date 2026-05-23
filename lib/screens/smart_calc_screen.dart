@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:termopaneli_app/design/app_colors.dart';
+import 'package:termopaneli_app/models/subscription_status.dart';
 import 'package:termopaneli_app/models/user_profile.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
 import 'package:termopaneli_app/services/app_manifest_api_service.dart';
 import 'package:termopaneli_app/services/profile_api_service.dart';
+import 'package:termopaneli_app/services/pro_subscription_grace.dart';
 import 'package:termopaneli_app/services/session_service.dart';
+import 'package:termopaneli_app/services/subscription_api_service.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 /// SmartCalc во встроенном WebView. Доступ только при **PRO** ([UserProfile.isPro]).
@@ -40,7 +43,41 @@ class _SmartCalcScreenState extends State<SmartCalcScreen> {
       return;
     }
     try {
-      final UserProfile? profile = await ProfileApiService.fetchMe();
+      UserProfile? profile;
+      bool isPro = false;
+      // До двух попыток: сразу после оформления подписки ответ me/status иногда
+      // отстаёт (прокси/реплика); короткая пауза и повтор обычно снимают «ложный не-PRO».
+      for (int attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+          if (!mounted) {
+            return;
+          }
+        }
+        profile = await ProfileApiService.fetchMe(bustCache: true);
+        if (!mounted) {
+          return;
+        }
+        if (profile == null) {
+          setState(() {
+            _gate = _SmartGate.notLoggedIn;
+          });
+          return;
+        }
+        isPro = profile.isPro || await ProSubscriptionGrace.isActive();
+        try {
+          final SubscriptionStatus? st =
+              await SubscriptionApiService.fetchStatus(bustCache: true);
+          if (st != null) {
+            isPro = isPro || st.isPro || st.subscription != null;
+          }
+        } catch (_) {
+          // 404 / сеть / не-JSON — остаёмся на профиле с этой попытки
+        }
+        if (isPro) {
+          break;
+        }
+      }
       if (!mounted) {
         return;
       }
@@ -50,7 +87,7 @@ class _SmartCalcScreenState extends State<SmartCalcScreen> {
         });
         return;
       }
-      if (!profile.isPro) {
+      if (!isPro) {
         setState(() {
           _gate = _SmartGate.notPro;
         });
@@ -135,8 +172,8 @@ class _SmartCalcScreenState extends State<SmartCalcScreen> {
         _SmartGate.notPro => _MessagePane(
             title: 'Только для PRO',
             body:
-                'SmartCalc доступен при активной подписке PRO. Оформите подписку в разделе ниже.',
-            primaryLabel: 'Управление подпиской',
+                'SmartCalc доступен при активной подписке PRO. Если вы только что оформили подписку, нажмите «Проверить снова». Иначе откройте экран оформления.',
+            primaryLabel: 'Оформить подписку',
             onPrimary: () async {
               await AppRouter.pushSubscription(context);
               if (!context.mounted) {
@@ -146,6 +183,15 @@ class _SmartCalcScreenState extends State<SmartCalcScreen> {
                 _gate = _SmartGate.loading;
               });
               await _prepare();
+            },
+            secondaryLabel: 'Проверить снова',
+            onSecondary: () {
+              setState(() {
+                _gate = _SmartGate.loading;
+                _controller = null;
+                _errorDetail = null;
+              });
+              _prepare();
             },
           ),
         _SmartGate.noUrl => _MessagePane(
@@ -195,6 +241,8 @@ class _MessagePane extends StatelessWidget {
     required this.primaryLabel,
     required this.onPrimary,
     this.detail,
+    this.secondaryLabel,
+    this.onSecondary,
   });
 
   final String title;
@@ -202,6 +250,8 @@ class _MessagePane extends StatelessWidget {
   final String primaryLabel;
   final VoidCallback onPrimary;
   final String? detail;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -222,6 +272,13 @@ class _MessagePane extends StatelessWidget {
               ),
             ],
             const Spacer(),
+            if (secondaryLabel != null && onSecondary != null) ...[
+              OutlinedButton(
+                onPressed: onSecondary,
+                child: Text(secondaryLabel!),
+              ),
+              const SizedBox(height: 10),
+            ],
             FilledButton(
               onPressed: onPrimary,
               child: Text(primaryLabel),

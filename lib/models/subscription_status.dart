@@ -11,11 +11,15 @@ class SubscriptionStatus {
   static SubscriptionStatus fromJson(Map<String, dynamic> json) {
     final Object? sub = json['subscription'];
     ActiveSubscription? active;
-    if (sub is Map<String, dynamic>) {
-      active = ActiveSubscription.fromJson(sub);
+    // jsonDecode иногда даёт Map<dynamic, dynamic> для вложенных объектов.
+    if (sub is Map) {
+      active = ActiveSubscription.fromJson(
+        Map<String, dynamic>.from(sub),
+      );
     }
     final Object? rawPro = json['is_pro'];
     final bool pro = rawPro == true ||
+        (rawPro is num && rawPro != 0) ||
         rawPro == 1 ||
         rawPro == '1' ||
         rawPro == 'true';

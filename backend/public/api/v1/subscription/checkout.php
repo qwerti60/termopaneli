@@ -2,10 +2,12 @@
 declare(strict_types=1);
 
 /**
- * POST — намерение оплатить выбранный тариф (заглушка: эквайринг не подключён).
+ * POST — оформление подписки при отсутствии эквайринга: сразу активирует PRO на срок тарифа.
  * Тело JSON: { "plan_code": "1m" | "3m" | "6m" | "1y" }
  *
- * Всегда пишет событие в subscription_payment_events и отвечает 200 с ok:false и кодом acquiring_not_configured.
+ * Поведение: при отсутствии активной подписки создаётся новая active, is_pro обновляется,
+ * в subscription_payment_events пишется activated_no_acquiring.
+ * Если уже есть активная неистёкшая подписка — 409 { ok:false, code: already_subscribed } (повторно не оформляется).
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
 require_once dirname(__DIR__, 3) . '/include/user_bearer_guard.php';
@@ -32,19 +34,33 @@ try {
         exit;
     }
     $price = (float) $plan['price_rub'];
-    tp_subscription_log_event(
-        $pdo,
-        $userId,
-        null,
-        $code,
-        $price,
-        'checkout_stub',
-        'Эквайринг не подключён; оплата недоступна (заглушка).'
+    $result = tp_subscription_activate_without_acquiring($pdo, $userId, $code);
+    if ($result === 'ALREADY_ACTIVE') {
+        tp_json_response(409, [
+            'ok' => false,
+            'code' => 'already_subscribed',
+            'message' => 'У вас уже есть активная подписка PRO. Чтобы оформить другой срок, сначала отмените текущую подписку в приложении.',
+        ]);
+        exit;
+    }
+    if (is_string($result)) {
+        tp_json_response(500, ['ok' => false, 'message' => $result]);
+        exit;
+    }
+    $msg = sprintf(
+        'Подписка PRO оформлена на срок тарифа. Онлайн-оплата не списывалась (эквайринг не подключён). Действует до %s.',
+        $result['expires_at']
     );
+    $payload = tp_subscription_status_payload($pdo, $userId);
     tp_json_response(200, [
-        'ok' => false,
-        'code' => 'acquiring_not_configured',
-        'message' => 'Онлайн-оплата пока не подключена. Выберите другой способ или свяжитесь с офисом — после подключения эквайринга оплата заработает в приложении.',
+        'ok' => true,
+        'code' => 'activated_without_payment',
+        'message' => $msg,
+        'subscription_id' => $result['subscription_id'],
+        'plan_code' => $result['plan_code'],
+        'expires_at' => $result['expires_at'],
+        'is_pro' => (bool) ($payload['is_pro'] ?? false),
+        'subscription' => $payload['subscription'] ?? null,
     ]);
 } catch (Throwable $e) {
     error_log('subscription/checkout: ' . $e->getMessage());

@@ -112,13 +112,15 @@ curl -sS -X POST "<API>/api/v1/admin/auth/logout.php" \
 Минимальный **браузерный** UI на том же хосте, что и API (корень сайта обычно указывает на **`public/`**). Статическое **руководство для пользователя и менеджера** по мобильному приложению лежит в **`admin-web/app_user_guide.html`** (внизу левого меню админки есть ссылка «Руководство по приложению», открывается в новой вкладке).
 
 1. Откройте **`https://<хост>/…/admin-web/login.php`** — путь зависит от развёртывания (рядом с **`api/`** внутри `public`).
-2. Войдите логином **`admin`** и паролем из миграции → откроется **`requests.php`**: слева меню (**Заявки**, **Сметы (все)**, **Панели**, **Материалы**, **Работы**, **Пользователи**, **Подписчики**, **Журнал**, **Прочее**). В разделе заявок — таблица, фильтры по статусу, кнопка **OK** у строки меняет статус (тот же **`UPDATE`**, что и **`status.php`**). Ссылка **«Просмотр сметы»** открывает **`request_view.php?id=…`**. На экране просмотра — **«Скачать PDF»** → **`request_pdf.php?id=…`**. Раздел **Сметы (все)** — **`admin_estimates.php`**: таблица **`estimates`** с контактом пользователя, кнопка **Удалить** (POST **`admin_estimate_delete.php`** + CSRF; каскадом удаляются позиции и **`estimate_requests`**). **Пользователи** — **`admin_users.php`**: список клиентов, колонка блокировки, кнопки **заблокировать** / **разблокировать** (нужна миграция **`migrate_user_profiles_is_blocked.sql`**; события пишутся в **`admin_audit_log`**). **Подписчики** — **`admin_subscribers.php`**: пользователи с **`is_pro = 1`** или активной строкой в **`user_subscriptions`**; ссылка **«Журнал оплат»** ведёт на **`admin_subscription_events.php`** (таблица **`subscription_payment_events`**, фильтр **`?user_id=`**); нужна миграция **`migrate_user_subscriptions.sql`**. **Журнал** — **`admin_journal.php`** (нужна миграция **`migrate_admin_audit_log.sql`**).
+2. Войдите логином **`admin`** и паролем из миграции → откроется **`requests.php`**: слева меню (**Заявки**, **Сметы (все)**, **Панели**, **Материалы**, **Работы**, **Пользователи**, **Подписки PRO**, **Журнал**, **Прочее**). Пункт **Прочее** (**`admin_misc.php`**) — справочник: ссылки по разделам, быстрые GET для проверки каталога и **app-manifest**, подсказки по **PDF/Dompdf**, миграции подписок, версия PHP. В разделе заявок — таблица, фильтры по статусу, кнопка **OK** у строки меняет статус (тот же **`UPDATE`**, что и **`status.php`**). Ссылка **«Просмотр сметы»** открывает **`request_view.php?id=…`**. На экране просмотра — **«Скачать PDF»** → **`request_pdf.php?id=…`**. Раздел **Сметы (все)** — **`admin_estimates.php`**: таблица **`estimates`** с контактом пользователя, кнопка **Удалить** (POST **`admin_estimate_delete.php`** + CSRF; каскадом удаляются позиции и **`estimate_requests`**). **Пользователи** — **`admin_users.php`**: список клиентов, колонка блокировки, кнопки **заблокировать** / **разблокировать** (нужна миграция **`migrate_user_profiles_is_blocked.sql`**; события пишутся в **`admin_audit_log`**). **Подписки PRO** — **`subscriptions.php`**: сводка и ссылки на **`admin_subscribers.php`** (пользователи с **`is_pro = 1`** или активной строкой в **`user_subscriptions`**) и **`admin_subscription_events.php`** (таблица **`subscription_payment_events`**, фильтр **`?user_id=`**); нужна миграция **`migrate_user_subscriptions.sql`**. **Журнал** — **`admin_journal.php`** (нужна миграция **`migrate_admin_audit_log.sql`**).
 3. **Панели** — **`catalog_panels.php`**: таблица **`thermo_panel_catalog`** (как в **`GET …/catalog/list.php?category=panel`**). Редактирование — **`catalog_panel_edit.php`** (поля по **`DESCRIBE`** на вашей БД).
 4. **Материалы** — **`catalog_materials.php`** / **`catalog_edit.php`** (таблица **`catalog_materials`**).
 5. **Работы** — **`catalog_work_prices.php`** / **`catalog_work_edit.php`** (таблица **`work_prices`**; для картинок выполните **`backend/sql/migrate_work_prices_image_path.sql`** при обновлении существующей БД).
 6. **Выйти** — инвалидация session-токена в **`admin_accounts`** и очистка сессии.
 
 Технически: **`bootstrap_web.php`** вызывает **`session_start`**, после успешного входа в сессии хранится **`admin_web_token`**; **`tp_admin_bearer()`** в **`admin_auth.php`** читает его, если нет заголовка **`Authorization`**.
+
+Сброс и смена пароля: **`login_reset.php`** (ссылка с **`login.php`**, без входа — код на email) и **`admin_password.php`** (клик по **логину** в подвале левого меню после входа). Миграция **`backend/sql/migrate_admin_password_reset.sql`**; в **`config.php`** задайте **`mail.from`** (и при необходимости **`mail.password_reset_fallback`**, **`admin_password_otp_ttl_seconds`**); для адреса получателя можно заполнить **`admin_accounts.email`**.
 
 ---
 
@@ -129,6 +131,7 @@ curl -sS -X POST "<API>/api/v1/admin/auth/logout.php" \
 3. Открыть заявку → сменить статус → **Применить** — у автора сметы в **«Мои заявки»** статус обновляется после обновления данных.
 4. **Иконка «Выйти»** в шапке списка — вызов **`logout.php`** и очистка токена на устройстве; повторный вход с профиля снова показывает экран логина.
 5. Меню **«⋯» → Секрет из config.php»** — ручной ввод **`admin_api_token`** (резерв для старого сценария). После **«Сохранить»** список перезагружается; диалог открывается **на следующем кадре** после закрытия `PopupMenu`, контроллер поля **не** `dispose` в том же такте, что и `Navigator.pop` диалога (избегание assert в `framework.dart`).
+6. **Подписка PRO / SmartCalc / «Дом»:** повторное оформление при активной подписке — **409** на **`POST …/subscription/checkout.php`**; локальный grace и флаг **`kHomeScreenEnabled`** — в **`docs/estimate_mvp.md`** → **`#mvp-subscription-pro`** и таблица маршрутов ЛК в том же файле.
 
 ---
 
@@ -142,10 +145,11 @@ curl -sS -X POST "<API>/api/v1/admin/auth/logout.php" \
 | Сервис заявок (список, деталь, статус) | `backend/public/include/admin_requests_service.php` |
 | Журнал админ-действий | `backend/public/include/admin_audit_log.php`, **`backend/sql/migrate_admin_audit_log.sql`**, **`backend/sql/schema_admin_audit_log.sql`** |
 | Список пользователей (админ) | `backend/public/include/admin_users.php`, `backend/public/admin-web/admin_users.php` |
-| Подписки PRO (список подписчиков, журнал оплат) | `backend/sql/migrate_user_subscriptions.sql`, `backend/public/include/admin_subscriptions.php`, `backend/public/admin-web/admin_subscribers.php`, `backend/public/admin-web/admin_subscription_events.php` |
+| Подписки PRO (сводка, подписчики, журнал оплат) | `backend/sql/migrate_user_subscriptions.sql`, `backend/public/include/admin_subscriptions.php`, `backend/public/admin-web/subscriptions.php`, `backend/public/admin-web/admin_subscribers.php`, `backend/public/admin-web/admin_subscription_events.php` |
 | Веб-страница журнала | `backend/public/admin-web/admin_journal.php` |
 | Разбор скидки (`calculation`) | `backend/public/include/admin_estimate_calc.php` |
 | Вход (общий код) | `backend/public/include/admin_login_verify.php` |
+| Сброс/смена пароля веб-админки | `backend/sql/migrate_admin_password_reset.sql`, `backend/public/include/admin_password_service.php`, `backend/public/include/admin_mail.php`, `backend/public/admin-web/login_reset.php`, `backend/public/admin-web/admin_password.php` |
 | Веб-админка | `backend/public/admin-web/` (… `admin_estimates.php`, `admin_estimate_delete.php`, `catalog_material_new.php`, `catalog_material_delete.php`, …) |
 | Загрузки картинок | `backend/public/catalog_uploads/` (создаётся автоматически; в git только `.gitignore` + `.gitkeep`) |
 | Загрузка / MIME | `backend/public/include/admin_catalog_media.php` |
@@ -157,6 +161,7 @@ curl -sS -X POST "<API>/api/v1/admin/auth/logout.php" \
 | Клиент: заявки | `lib/screens/admin_requests_screen.dart`, `lib/services/admin_requests_api_service.dart` |
 | Навигация | `lib/routes/routes.dart` (`adminLogin`), `lib/routes/app_router.dart` (`pushAdminRequests`) |
 | Хранение Bearer | `lib/services/session_service.dart` (ключ **`admin_api_token`** в `SharedPreferences` — для session после login и для ручного секрета) |
+| Страница «Прочее» (справочник) | `backend/public/admin-web/admin_misc.php` |
 
 ---
 

@@ -14,6 +14,7 @@
 
    Подписка PRO (таблицы user_subscriptions и subscription_payment_events, API и веб-админка «Подписчики»):
    sql/migrate_user_subscriptions.sql — для существующей БД; в свежем schema_auth.sql таблицы уже в CREATE.
+   PHP на сервере: public/api/v1/subscription/status.php, checkout.php, cancel.php (+ include/subscription_plans.php, subscriptions_repo.php при выкладке из репозитория).
 
    Если таблица user_profiles уже была создана ранее: убедитесь, что есть столбцы:
    - phone (уникальный),
@@ -37,7 +38,7 @@
                                                перед ответом синхронизируется is_pro с активной подпиской (user_subscriptions)
    POST .../api/v1/profile/update.php       — обновление ФИО и email (JSON: last_name, first_name, middle_name, email); телефон не меняется; Authorization: Bearer <token>; ответ как у me.php
    GET  .../api/v1/subscription/status.php  — статус PRO и активная подписка (JSON: is_pro, subscription|null), Authorization: Bearer <token>
-   POST .../api/v1/subscription/checkout.php — тело JSON {"plan_code":"1m"|"3m"|"6m"|"1y"}; пока эквайринг не подключён: запись события checkout_stub в subscription_payment_events и ответ 200 { "ok": false, "code": "acquiring_not_configured", "message": "..." }
+   POST .../api/v1/subscription/checkout.php — тело JSON {"plan_code":"1m"|"3m"|"6m"|"1y"}; пока эквайринг не подключён: при отсутствии активной подписки сразу создаётся PRO на срок тарифа (строка user_subscriptions, is_pro=1), ответ 200 { "ok": true, "code": "activated_without_payment", ... }; в subscription_payment_events — activated_no_acquiring. Если активная подписка уже есть — 409 { "ok": false, "code": "already_subscribed", "message": "..." }. После подключения эквайринга замените логику на реальную оплату.
    POST .../api/v1/subscription/cancel.php   — отмена активной подписки (снимает PRO), Authorization: Bearer <token>; 200 { "ok": true } или 400 { "ok": false, "message": "..." }
    GET  .../api/v1/work-prices/list.php      — тестовый прайс работ для сметы
    POST .../api/v1/estimates/save.php        — сохранение сметы, Authorization: Bearer <token>

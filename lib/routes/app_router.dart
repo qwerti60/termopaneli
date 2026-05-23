@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:termopaneli_app/auth/pending_registration.dart';
+import 'package:termopaneli_app/config/app_features.dart';
 import 'package:termopaneli_app/routes/routes.dart';
 import 'package:termopaneli_app/screens/catalog_screen.dart';
 import 'package:termopaneli_app/screens/estimate_screen.dart';
@@ -67,6 +68,20 @@ abstract final class AppRouter {
           settings: settings,
         );
       case AppRoutes.home:
+        if (!kHomeScreenEnabled) {
+          final Object? a = settings.arguments;
+          final PanelFitArgs? panelFitArgs = switch (a) {
+            final PanelFitArgs p => p,
+            _ => null,
+          };
+          return MaterialPageRoute<void>(
+            builder: (_) => PanelFitScreen(
+              initialTextureUrl: panelFitArgs?.textureImageUrl,
+              initialPanelTitle: panelFitArgs?.panelTitle,
+            ),
+            settings: settings,
+          );
+        }
         return MaterialPageRoute<void>(
           builder: (_) => const HomeScreen(),
           settings: settings,

@@ -61,4 +61,15 @@ return [
      * В продакшене оставьте false.
      */
     'debug' => false,
+    /**
+     * Почта для сброса пароля веб-админки (PHP mail). Обязательно задайте mail.from на сервере с рабочим sendmail.
+     * password_reset_fallback — если у записи admin_accounts нет колонки email, код можно отправлять на один ящик.
+     */
+    'mail' => [
+        'from' => '',
+        'from_name' => 'Termopaneli Admin',
+        'password_reset_fallback' => '',
+    ],
+    /** Срок жизни кода сброса пароля админки (секунды), по умолчанию 900. */
+    'admin_password_otp_ttl_seconds' => 900,
 ];

@@ -1,4 +1,4 @@
--- Подписки PRO и журнал попыток оплаты (до подключения эквайринга — события checkout_stub).
+-- Подписки PRO и журнал событий (в т.ч. activated_no_acquiring при оформлении без эквайринга).
 -- Повторный запуск безопасен (CREATE TABLE IF NOT EXISTS).
 
 CREATE TABLE IF NOT EXISTS user_subscriptions (
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS subscription_payment_events (
   subscription_id INT UNSIGNED NULL DEFAULT NULL,
   plan_code VARCHAR(16) NOT NULL DEFAULT '',
   amount_rub DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  event_type VARCHAR(48) NOT NULL COMMENT 'checkout_stub, subscription_cancelled, …',
+  event_type VARCHAR(48) NOT NULL COMMENT 'activated_no_acquiring, subscription_cancelled, …',
   detail VARCHAR(512) NULL DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

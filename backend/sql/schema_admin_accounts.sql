@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS admin_accounts (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     login VARCHAR(64) NOT NULL COMMENT 'логин для POST .../admin/auth/login.php',
+    email VARCHAR(255) NULL DEFAULT NULL COMMENT 'для кода сброса пароля веб-админки',
     password_hash VARCHAR(255) NOT NULL COMMENT 'password_hash() PHP',
     token CHAR(64) NULL DEFAULT NULL COMMENT 'Bearer после успешного входа',
     token_updated_at DATETIME NULL DEFAULT NULL,

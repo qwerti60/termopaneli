@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:termopaneli_app/services/pro_subscription_grace.dart';
 
 abstract final class SessionService {
   SessionService._();
@@ -13,10 +14,15 @@ abstract final class SessionService {
 
   static Future<void> saveToken(String token) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? prev = prefs.getString(_keyToken);
+    if (prev != null && prev != token) {
+      await ProSubscriptionGrace.clear();
+    }
     await prefs.setString(_keyToken, token);
   }
 
   static Future<void> clearToken() async {
+    await ProSubscriptionGrace.clear();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyToken);
   }

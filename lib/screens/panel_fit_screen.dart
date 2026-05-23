@@ -236,7 +236,7 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
               const SnackBar(
                 content: Text(
                   'Сессия недействительна или аккаунт заблокирован. '
-                  'Примерка доступна без входа в аккаунт.',
+                  'Дом/Примерка доступна без входа в аккаунт.',
                 ),
               ),
             );
@@ -754,7 +754,7 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
       await SharePlus.instance.share(
         ShareParams(
           files: <XFile>[XFile(out.path, mimeType: 'image/png')],
-          text: 'Примерка фасада',
+          text: 'Дом/Примерка фасада',
         ),
       );
     } catch (e) {
@@ -820,7 +820,7 @@ class _PanelFitScreenState extends State<PanelFitScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Примерка (MVP)'),
+        title: const Text('Дом/Примерка'),
         actions: [
           if (_hasCatalogTexture)
             IconButton(

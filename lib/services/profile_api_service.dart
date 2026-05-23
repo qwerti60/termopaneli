@@ -26,18 +26,24 @@ abstract final class ProfileApiService {
   }
 
   /// `null` — нет токена или 401; иначе профиль.
-  static Future<UserProfile?> fetchMe() async {
+  /// [bustCache]: заголовки против промежуточного кэша (без лишних query-параметров).
+  static Future<UserProfile?> fetchMe({bool bustCache = false}) async {
     final String? token = await SessionService.getToken();
     if (token == null || token.isEmpty) {
       return null;
     }
+    final Map<String, String> headers = <String, String>{
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    if (bustCache) {
+      headers['Cache-Control'] = 'no-cache';
+      headers['Pragma'] = 'no-cache';
+    }
     final http.Response res = await http
         .get(
           _uri('/api/v1/profile/me.php', token: token),
-          headers: <String, String>{
-            'Accept': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
+          headers: headers,
         )
         .timeout(const Duration(seconds: 20));
     if (res.statusCode == 401) {
@@ -58,11 +64,29 @@ abstract final class ProfileApiService {
     if (res.statusCode != 200) {
       throw Exception('Профиль: ответ сервера ${res.statusCode}');
     }
-    final Object? data = json.decode(res.body);
-    if (data is! Map<String, dynamic>) {
-      throw Exception('Некорректный ответ профиля');
+    final String raw = res.body.trim();
+    if (raw.isEmpty) {
+      throw Exception('Профиль: пустой ответ сервера');
     }
-    return UserProfile.fromJson(data);
+    if (!raw.startsWith('{') && !raw.startsWith('[')) {
+      final String head = raw.length > 120 ? '${raw.substring(0, 120)}…' : raw;
+      throw Exception(
+        'Профиль: сервер вернул не JSON (часто это HTML с ошибкой PHP). '
+        'Начало ответа: $head',
+      );
+    }
+    try {
+      final Object? data = json.decode(raw);
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Некорректный ответ профиля');
+      }
+      return UserProfile.fromJson(data);
+    } on FormatException catch (e) {
+      throw Exception(
+        'Профиль: ответ не удалось разобрать как JSON (${e.message}). '
+        'Проверьте, что по адресу API открывается именно me.php без PHP-warning перед JSON.',
+      );
+    }
   }
 
   /// Инвалидирует токен на сервере (если доступен `auth/logout.php`). Ошибки сети игнорируются.

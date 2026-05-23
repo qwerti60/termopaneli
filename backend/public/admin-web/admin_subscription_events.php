@@ -23,13 +23,14 @@ try {
 
 $adminLogin = (string) ($_SESSION['admin_web_login'] ?? '');
 
-tp_admin_web_layout_start('Журнал оплат и подписок', 'subscribers', $adminLogin !== '' ? $adminLogin : null);
+tp_admin_web_layout_start('Журнал оплат и подписок', 'subscriptions', $adminLogin !== '' ? $adminLogin : null);
 ?>
 <?php if ($tableErr !== '') { ?>
     <p class="err"><?= tp_admin_web_h($tableErr) ?></p>
 <?php } ?>
-<p class="meta">События: попытка перейти к оплате (<code>checkout_stub</code> — эквайринг не подключён), отмена подписки пользователем и др. Фильтр по пользователю: <code>?user_id=</code></p>
+<p class="meta">События: оформление PRO без эквайринга (<code>activated_no_acquiring</code>), отмена подписки (<code>subscription_cancelled</code>) и др. Фильтр по пользователю: <code>?user_id=</code></p>
 <div class="toolbar">
+    <a class="btn secondary" href="subscriptions.php">← Подписки PRO</a>
     <a class="btn secondary" href="admin_subscribers.php">Подписчики</a>
     <?php if ($userFilter > 0) { ?>
         <a class="btn secondary" href="admin_subscription_events.php">Все события</a>
