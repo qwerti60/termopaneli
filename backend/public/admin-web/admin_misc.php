@@ -4,13 +4,42 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap_web.php';
 
 $pdo = tp_admin_web_require_login();
+tp_admin_web_require_include('admin_app_settings.php');
 $adminLogin = (string) ($_SESSION['admin_web_login'] ?? '');
 
 $apiList = tp_admin_web_public_href('api/v1/catalog/list.php');
 $apiManifest = tp_admin_web_public_href('api/v1/settings/app-manifest.php');
+$flashOk = '';
+$flashErr = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $csrf = (string) ($_POST['csrf'] ?? '');
+    if (!tp_admin_web_csrf_check($csrf)) {
+        $flashErr = 'Сессия устарела. Обновите страницу.';
+    } else {
+        $action = (string) ($_POST['action'] ?? '');
+        if ($action === 'save_ads') {
+            try {
+                tp_admin_app_settings_save_yandex_banner_id((string) ($_POST['yandex_banner_ad_unit_id'] ?? ''));
+                $flashOk = 'Настройки рекламы сохранены. Приложение увидит их после обновления app-manifest (кэш до 5 минут).';
+            } catch (Throwable $e) {
+                $flashErr = $e->getMessage();
+            }
+        }
+    }
+}
+
+$csrfNew = tp_admin_web_csrf_token();
+$yandexBannerAdUnitId = tp_admin_app_settings_yandex_banner_id();
 
 tp_admin_web_layout_start('Прочее', 'more', $adminLogin !== '' ? $adminLogin : null);
 ?>
+<?php if ($flashErr !== '') { ?>
+    <p class="err"><?= tp_admin_web_h($flashErr) ?></p>
+<?php } ?>
+<?php if ($flashOk !== '') { ?>
+    <p class="ok"><?= tp_admin_web_h($flashOk) ?></p>
+<?php } ?>
 <p class="meta">Справочник по веб-админке и окружению: быстрые ссылки, проверки API и типовые проблемы. Основные операции — в пунктах левого меню.</p>
 
 <div class="card">
@@ -39,6 +68,22 @@ tp_admin_web_layout_start('Прочее', 'more', $adminLogin !== '' ? $adminLog
         <li><a href="<?= tp_admin_web_h($apiList) ?>?category=slope&amp;limit=3" target="_blank" rel="noopener">Каталог: откосы (limit=3)</a></li>
         <li><a href="<?= tp_admin_web_h($apiManifest) ?>" target="_blank" rel="noopener">App-manifest</a> (ссылки, реквизиты PDF, SmartCalc и т.д.)</li>
     </ul>
+</div>
+
+<div class="card">
+    <h2>Реклама РСЯ в приложении</h2>
+    <p class="meta">ID баннерного блока отдаётся в <code>GET .../settings/app-manifest.php</code> как <code>yandex_banner_ad_unit_id</code>. Приложение показывает sticky-баннеры на экранах «Каталог» и «Поиск».</p>
+    <form method="post" action="admin_misc.php" autocomplete="off">
+        <input type="hidden" name="csrf" value="<?= tp_admin_web_h($csrfNew) ?>">
+        <input type="hidden" name="action" value="save_ads">
+        <label class="b" for="yandex_banner_ad_unit_id">ID баннерного блока РСЯ</label>
+        <input class="in" id="yandex_banner_ad_unit_id" name="yandex_banner_ad_unit_id" type="text" maxlength="64" value="<?= tp_admin_web_h($yandexBannerAdUnitId !== '' ? $yandexBannerAdUnitId : 'R-M-19410021-1') ?>" placeholder="R-M-19410021-1">
+        <p class="meta">Оставьте пустым, чтобы скрыть баннеры. Сохранение создаёт или обновляет <code>config.local.php</code> рядом с <code>config.php</code>.</p>
+        <div class="form-actions">
+            <button class="btn" type="submit">Сохранить рекламу</button>
+            <a class="btn secondary" href="<?= tp_admin_web_h($apiManifest) ?>" target="_blank" rel="noopener">Проверить app-manifest</a>
+        </div>
+    </form>
 </div>
 
 <div class="card">

@@ -1,0 +1,13 @@
+<?php
+declare(strict_types=1);
+
+return [
+    'db' => [
+        // 'host' => 'mysql.hosting.example.com',
+    ],
+    'mail' => [
+        'smtp_password' => 'ПАРОЛЬ_ОТ_ПОЧТЫ',
+        // 'transport' => 'curl',
+        // 'smtp' => ['verify_peer' => false],
+    ],
+];

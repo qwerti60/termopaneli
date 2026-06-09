@@ -4,6 +4,7 @@ import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
+import 'package:termopaneli_app/widgets/yandex_banner_ad.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -62,8 +63,7 @@ class _SearchScreenState extends State<SearchScreen> {
     String material = _selectedMaterial;
     String color = _selectedColor;
     String thickness = _selectedThickness;
-    final bool showThickness =
-        thicknesses.isNotEmpty || thickness != 'all';
+    final bool showThickness = thicknesses.isNotEmpty || thickness != 'all';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -218,32 +218,38 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.pageBackground,
-      bottomNavigationBar: Container(
-        height: 74,
-        color: const Color(0xFFE6E6E6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _BottomNavItem(
-              icon: Icons.grid_view_outlined,
-              label: 'Каталог',
-              isActive: false,
-              onTap: () => AppRouter.pushCatalog(context),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const YandexBannerAd(backgroundColor: Color(0xFFE6E6E6)),
+          Container(
+            height: 74,
+            color: const Color(0xFFE6E6E6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _BottomNavItem(
+                  icon: Icons.grid_view_outlined,
+                  label: 'Каталог',
+                  isActive: false,
+                  onTap: () => AppRouter.pushCatalog(context),
+                ),
+                _BottomNavItem(
+                  icon: Icons.search,
+                  label: 'Поиск',
+                  isActive: true,
+                  onTap: () {},
+                ),
+                _BottomNavItem(
+                  icon: Icons.person_outline,
+                  label: 'Профиль',
+                  isActive: false,
+                  onTap: () => AppRouter.pushProfile(context),
+                ),
+              ],
             ),
-            _BottomNavItem(
-              icon: Icons.search,
-              label: 'Поиск',
-              isActive: true,
-              onTap: () {},
-            ),
-            _BottomNavItem(
-              icon: Icons.person_outline,
-              label: 'Профиль',
-              isActive: false,
-              onTap: () => AppRouter.pushProfile(context),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -332,89 +338,81 @@ class _SearchScreenState extends State<SearchScreen> {
               Expanded(
                 child: FutureBuilder<List<CatalogItem>>(
                   future: _catalogFuture,
-                  builder:
-                      (
-                        BuildContext context,
-                        AsyncSnapshot<List<CatalogItem>> snapshot,
-                      ) {
-                        if (snapshot.connectionState != ConnectionState.done) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  const Text(
-                                    'Не удалось загрузить каталог для поиска',
-                                    textAlign: TextAlign.center,
-                                    style: AppTextTheme.body32,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  FilledButton.tonal(
-                                    onPressed: _retryCatalog,
-                                    child: const Text('Повторить'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }
-                        final String query = _searchController.text.trim();
-                        if (query.isEmpty) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text(
-                                _hasFilters
-                                    ? 'Введите название, артикул, цвет или материал.\n'
-                                        'Активен фильтр API — список уже сужен по материалу, цвету и при необходимости толщине (как в каталоге).'
-                                    : 'Введите название, артикул, цвет или материал.\n'
-                                        'При необходимости сузьте выборку кнопкой фильтра.',
+                  builder: (BuildContext context, AsyncSnapshot<List<CatalogItem>> snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Text(
+                                'Не удалось загрузить каталог для поиска',
                                 textAlign: TextAlign.center,
                                 style: AppTextTheme.body32,
                               ),
-                            ),
-                          );
-                        }
-                        final List<CatalogItem> results = _searchResults(
-                          snapshot.data ?? const <CatalogItem>[],
-                        );
-                        if (results.isEmpty) {
-                          final String extra = _hasFilters
-                              ? '\n\nПопробуйте сбросить фильтр (материал, цвет, толщина) или изменить запрос.'
-                              : '';
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              child: Text(
-                                'Ничего не найдено по запросу «$query».$extra',
-                                textAlign: TextAlign.center,
-                                style: AppTextTheme.body32,
+                              const SizedBox(height: 14),
+                              FilledButton.tonal(
+                                onPressed: _retryCatalog,
+                                child: const Text('Повторить'),
                               ),
-                            ),
-                          );
-                        }
-                        return ListView.separated(
-                          itemCount: results.length,
-                          separatorBuilder: (context, index) =>
-                              Divider(color: Colors.grey.shade300, height: 1),
-                          itemBuilder: (BuildContext context, int index) {
-                            final CatalogItem item = results[index];
-                            return _SearchResultItem(
-                              item: item,
-                              onTap: () => AppRouter.pushProductDetails(
-                                context,
-                                item: item,
-                              ),
-                            );
-                          },
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    final String query = _searchController.text.trim();
+                    if (query.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            _hasFilters
+                                ? 'Введите название, артикул, цвет или материал.\n'
+                                      'Активен фильтр API — список уже сужен по материалу, цвету и при необходимости толщине (как в каталоге).'
+                                : 'Введите название, артикул, цвет или материал.\n'
+                                      'При необходимости сузьте выборку кнопкой фильтра.',
+                            textAlign: TextAlign.center,
+                            style: AppTextTheme.body32,
+                          ),
+                        ),
+                      );
+                    }
+                    final List<CatalogItem> results = _searchResults(
+                      snapshot.data ?? const <CatalogItem>[],
+                    );
+                    if (results.isEmpty) {
+                      final String extra = _hasFilters
+                          ? '\n\nПопробуйте сбросить фильтр (материал, цвет, толщина) или изменить запрос.'
+                          : '';
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'Ничего не найдено по запросу «$query».$extra',
+                            textAlign: TextAlign.center,
+                            style: AppTextTheme.body32,
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      itemCount: results.length,
+                      separatorBuilder: (context, index) =>
+                          Divider(color: Colors.grey.shade300, height: 1),
+                      itemBuilder: (BuildContext context, int index) {
+                        final CatalogItem item = results[index];
+                        return _SearchResultItem(
+                          item: item,
+                          onTap: () =>
+                              AppRouter.pushProductDetails(context, item: item),
                         );
                       },
+                    );
+                  },
                 ),
               ),
             ],
@@ -454,8 +452,9 @@ class _SearchDropdownFilter extends StatelessWidget {
     } else {
       options.sort();
     }
-    final String initialDropdownValue =
-        value.isEmpty || value == 'all' ? 'all' : value;
+    final String initialDropdownValue = value.isEmpty || value == 'all'
+        ? 'all'
+        : value;
 
     final List<DropdownMenuItem<String>> items = <DropdownMenuItem<String>>[
       const DropdownMenuItem<String>(

@@ -4,6 +4,7 @@ import 'package:termopaneli_app/design/app_text_sizes.dart';
 import 'package:termopaneli_app/design/app_text_theme.dart';
 import 'package:termopaneli_app/routes/app_router.dart';
 import 'package:termopaneli_app/services/catalog_api_service.dart';
+import 'package:termopaneli_app/widgets/yandex_banner_ad.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -104,8 +105,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
     String material = _selectedMaterial;
     String color = _selectedColor;
     String thickness = _selectedThickness;
-    final bool showThickness =
-        thicknesses.isNotEmpty || thickness != 'all';
+    final bool showThickness = thicknesses.isNotEmpty || thickness != 'all';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -144,7 +144,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         label: 'Толщина, мм',
                         value: thickness,
                         values: thicknesses,
-                        compareOptions: CatalogApiService.compareThicknessFilterTokens,
+                        compareOptions:
+                            CatalogApiService.compareThicknessFilterTokens,
                         onChanged: (String value) {
                           setSheetState(() => thickness = value);
                         },
@@ -253,32 +254,38 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.pageBackground,
-      bottomNavigationBar: Container(
-        height: 74,
-        color: const Color(0xFFE6E6E6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _BottomNavItem(
-              icon: Icons.grid_view_outlined,
-              label: 'Каталог',
-              isActive: true,
-              onTap: () {},
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const YandexBannerAd(backgroundColor: Color(0xFFE6E6E6)),
+          Container(
+            height: 74,
+            color: const Color(0xFFE6E6E6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _BottomNavItem(
+                  icon: Icons.grid_view_outlined,
+                  label: 'Каталог',
+                  isActive: true,
+                  onTap: () {},
+                ),
+                _BottomNavItem(
+                  icon: Icons.search,
+                  label: 'Поиск',
+                  isActive: false,
+                  onTap: () => AppRouter.pushSearch(context),
+                ),
+                _BottomNavItem(
+                  icon: Icons.person_outline,
+                  label: 'Профиль',
+                  isActive: false,
+                  onTap: () => AppRouter.pushProfile(context),
+                ),
+              ],
             ),
-            _BottomNavItem(
-              icon: Icons.search,
-              label: 'Поиск',
-              isActive: false,
-              onTap: () => AppRouter.pushSearch(context),
-            ),
-            _BottomNavItem(
-              icon: Icons.person_outline,
-              label: 'Профиль',
-              isActive: false,
-              onTap: () => AppRouter.pushProfile(context),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -372,7 +379,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         if (snapshot.hasError) {
                           return Center(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: <Widget>[
@@ -462,8 +471,9 @@ class _DropdownFilter extends StatelessWidget {
     } else {
       options.sort();
     }
-    final String initialDropdownValue =
-        value.isEmpty || value == 'all' ? 'all' : value;
+    final String initialDropdownValue = value.isEmpty || value == 'all'
+        ? 'all'
+        : value;
 
     final List<DropdownMenuItem<String>> items = <DropdownMenuItem<String>>[
       const DropdownMenuItem<String>(

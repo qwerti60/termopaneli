@@ -55,6 +55,7 @@ return [
     'app_manifest' => [
         // 'privacy_policy_url' => 'https://.../privacy.html',
         // 'smartcalc_url' => 'https://.../smartcalc', // WebView в приложении для PRO (см. GET settings/app-manifest.php)
+        // 'yandex_banner_ad_unit_id' => 'R-M-19410021-1', // РСЯ: sticky-баннеры Каталог/Поиск; можно сохранить из admin-web → Прочее
     ],
     /**
      * true — в JSON при 500 в поле message возвращается текст исключения (только для отладки).
@@ -64,6 +65,7 @@ return [
     /**
      * Почта для сброса пароля веб-админки (PHP mail). Обязательно задайте mail.from на сервере с рабочим sendmail.
      * password_reset_fallback — если у записи admin_accounts нет колонки email, код можно отправлять на один ящик.
+     * Рассылка по 2ГИС — отдельный каталог email-outreach/ в корне репозитория.
      */
     'mail' => [
         'from' => '',

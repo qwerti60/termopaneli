@@ -49,6 +49,7 @@ run_smsc_local.sh
 
 # Локальный PHP-конфиг с доступами к БД (не коммитить)
 backend/public/config.php
+backend/public/config.local.php
 
 # PHP Composer (backend): закоммичены composer.json / composer.lock; vendor собирается на сервере
 backend/vendor/
@@ -66,3 +67,9 @@ backend/scripts.zip
 # Загрузки картинок из веб-админки (см. catalog_uploads/)
 backend/public/catalog_uploads/*
 !backend/public/catalog_uploads/.gitkeep
+
+# Инструмент рассылки / 2ГИС (отдельный каталог)
+email-outreach/config.php
+email-outreach/config.local.php
+email-outreach/output/*
+!email-outreach/output/.gitkeep

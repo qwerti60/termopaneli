@@ -11,13 +11,15 @@ declare(strict_types=1);
  *   "company_pdf": { ... те же поля, что в company-for-pdf.php ... },
  *   "user_agreement_url": "...",
  *   "privacy_policy_url": "",
- *   "smartcalc_url": ""
+ *   "smartcalc_url": "",
+ *   "yandex_banner_ad_unit_id": ""
  * }
  *
  * Опционально в config.php:
  *   'app_manifest' => [
  *     'privacy_policy_url' => 'https://...',
  *     'smartcalc_url' => 'https://...', // SmartCalc для WebView в приложении (PRO)
+ *     'yandex_banner_ad_unit_id' => 'R-M-19410021-1', // баннер РСЯ для Каталога/Поиска
  *   ],
  */
 require_once dirname(__DIR__, 3) . '/include/api_bootstrap.php';
@@ -49,6 +51,14 @@ try {
         }
     }
 
+    $yandexBannerAdUnitId = '';
+    if (is_array($appManifest) && isset($appManifest['yandex_banner_ad_unit_id'])) {
+        $ad = $appManifest['yandex_banner_ad_unit_id'];
+        if (is_string($ad)) {
+            $yandexBannerAdUnitId = trim($ad);
+        }
+    }
+
     header('Cache-Control: public, max-age=300');
     tp_json_response(200, [
         'version' => 1,
@@ -56,6 +66,7 @@ try {
         'user_agreement_url' => $companyPdf['user_agreement_url'] ?? '',
         'privacy_policy_url' => $privacy,
         'smartcalc_url' => $smartcalc,
+        'yandex_banner_ad_unit_id' => $yandexBannerAdUnitId,
     ]);
 } catch (Throwable) {
     tp_json_response(500, ['error' => 'Ошибка чтения настроек']);

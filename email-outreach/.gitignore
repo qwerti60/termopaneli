@@ -1,0 +1,4 @@
+config.php
+config.local.php
+output/*
+!output/.gitkeep

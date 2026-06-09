@@ -33,7 +33,7 @@
    GET  .../api/v1/catalog/list.php          — каталог панелей и материалов; query: category, limit, offset, опционально material и color (точное совпадение полей в catalog_materials; к выборке панелей не применяются)
                                                параметры: category=all|panel|slope|corner|grout|ebb|soffit|plinth|fastener
    GET  .../api/v1/settings/company-for-pdf.php — JSON реквизитов и ссылок для шапки PDF (без Authorization); значения из config.php (ключ company_pdf) с дефолтами в PHP
-   GET  .../api/v1/settings/app-manifest.php — единый JSON: company_pdf (как выше) + user_agreement_url + privacy_policy_url (опционально из config.php → app_manifest) + smartcalc_url (опционально: HTTPS-страница SmartCalc для WebView в приложении у пользователей PRO)
+   GET  .../api/v1/settings/app-manifest.php — единый JSON: company_pdf (как выше) + user_agreement_url + privacy_policy_url (опционально из config.php → app_manifest) + smartcalc_url (HTTPS-страница SmartCalc для PRO) + yandex_banner_ad_unit_id (ID блока РСЯ для баннеров Каталог/Поиск; можно сохранить в admin-web → Прочее)
    GET  .../api/v1/profile/me.php            — профиль текущего пользователя (ФИО, телефон, email), Authorization: Bearer <token>
                                                перед ответом синхронизируется is_pro с активной подпиской (user_subscriptions)
    POST .../api/v1/profile/update.php       — обновление ФИО и email (JSON: last_name, first_name, middle_name, email); телефон не меняется; Authorization: Bearer <token>; ответ как у me.php

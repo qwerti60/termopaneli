@@ -39,7 +39,27 @@ function tp_config(): array
     }
     /** @var array $cache */
     $cache = require $path;
+    $localPath = dirname(__DIR__) . '/config.local.php';
+    if (is_readable($localPath)) {
+        $local = require $localPath;
+        if (is_array($local)) {
+            $cache = tp_array_replace_recursive($cache, $local);
+        }
+    }
     return $cache;
+}
+
+function tp_array_replace_recursive(array $base, array $overrides): array
+{
+    foreach ($overrides as $key => $value) {
+        if (is_array($value) && isset($base[$key]) && is_array($base[$key])) {
+            $base[$key] = tp_array_replace_recursive($base[$key], $value);
+        } else {
+            $base[$key] = $value;
+        }
+    }
+
+    return $base;
 }
 
 function tp_pdo(): PDO

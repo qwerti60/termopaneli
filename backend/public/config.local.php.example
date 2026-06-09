@@ -1,0 +1,14 @@
+<?php
+/**
+ * Локальные переопределения для backend (скопируйте в config.local.php).
+ */
+declare(strict_types=1);
+
+return [
+    // 'db' => [
+    //     'host' => '127.0.0.1',
+    // ],
+    // 'app_manifest' => [
+    //     'yandex_banner_ad_unit_id' => 'R-M-19410021-1',
+    // ],
+];

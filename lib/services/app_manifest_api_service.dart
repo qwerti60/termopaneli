@@ -10,6 +10,7 @@ class AppManifest {
     required this.userAgreementUrl,
     required this.privacyPolicyUrl,
     this.smartCalcUrl = '',
+    this.yandexBannerAdUnitId = '',
   });
 
   final Map<String, dynamic> companyPdfMap;
@@ -18,6 +19,9 @@ class AppManifest {
 
   /// URL SmartCalc для WebView (PRO). Задаётся в `config.php` → `app_manifest.smartcalc_url`.
   final String smartCalcUrl;
+
+  /// ID баннерного блока РСЯ. Задаётся в веб-админке или `config.php` → `app_manifest.yandex_banner_ad_unit_id`.
+  final String yandexBannerAdUnitId;
 }
 
 /// Публичный манифест приложения (один запрос вместо разрозненных URL).
@@ -33,8 +37,9 @@ abstract final class AppManifestApiService {
     if (base.isEmpty) {
       return null;
     }
-    final String normalized =
-        base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+    final String normalized = base.endsWith('/')
+        ? base.substring(0, base.length - 1)
+        : base;
     return Uri.parse('$normalized/api/v1/settings/app-manifest.php');
   }
 
@@ -65,19 +70,20 @@ abstract final class AppManifestApiService {
       if (cp is! Map) {
         return null;
       }
-      final Map<String, dynamic> companyPdfMap =
-          cp.cast<String, dynamic>();
-      final String userAgreementUrl =
-          '${decoded['user_agreement_url'] ?? ''}'.trim();
-      final String privacyPolicyUrl =
-          '${decoded['privacy_policy_url'] ?? ''}'.trim();
-      final String smartCalcUrl =
-          '${decoded['smartcalc_url'] ?? ''}'.trim();
+      final Map<String, dynamic> companyPdfMap = cp.cast<String, dynamic>();
+      final String userAgreementUrl = '${decoded['user_agreement_url'] ?? ''}'
+          .trim();
+      final String privacyPolicyUrl = '${decoded['privacy_policy_url'] ?? ''}'
+          .trim();
+      final String smartCalcUrl = '${decoded['smartcalc_url'] ?? ''}'.trim();
+      final String yandexBannerAdUnitId =
+          '${decoded['yandex_banner_ad_unit_id'] ?? ''}'.trim();
       final AppManifest manifest = AppManifest(
         companyPdfMap: companyPdfMap,
         userAgreementUrl: userAgreementUrl,
         privacyPolicyUrl: privacyPolicyUrl,
         smartCalcUrl: smartCalcUrl,
+        yandexBannerAdUnitId: yandexBannerAdUnitId,
       );
       _cache = manifest;
       _cachedAt = DateTime.now();

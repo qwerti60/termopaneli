@@ -622,6 +622,18 @@ API (фактические пути приложения):
 
 ## 11. Этап 9. Рекламная сеть
 
+**Частично (MVP):** подключена РСЯ / Yandex Mobile Ads через **`yandex_mobileads`**. SDK инициализируется в **`lib/main.dart`** только на Android/iOS, геолокация для таргетинга отключена. Sticky-баннер **`YandexBannerAd`** добавлен над нижней навигацией на экранах **Каталог** и **Поиск**; при пустом ID или ошибке загрузки баннер скрывается и сценарий не ломается. ID блока приходит с сервера через **`GET .../settings/app-manifest.php`** → **`yandex_banner_ad_unit_id`**; веб-админка сохраняет его в **Прочее → Реклама РСЯ в приложении** (`config.local.php`, текущий блок **`R-M-19410021-1`**). Compile-time параметры остались как fallback / kill switch: **`YANDEX_BANNER_AD_UNIT_ID`** для тестового ID и **`YANDEX_ADS_ENABLED=false`** для полного отключения. Android: **minSdk 23**; iOS: **platform 13.0**.
+
+Пример тестового запуска:
+
+```sh
+flutter run \
+  --dart-define=YANDEX_ADS_ENABLED=true \
+  --dart-define=YANDEX_BANNER_AD_UNIT_ID=demo-banner-yandex
+```
+
+Для production ID блока задаётся на сервере через веб-админку; тестовый **`demo-banner-yandex`** нужен только если серверный **`yandex_banner_ad_unit_id`** ещё пустой. Реклама пока не ставится на критические экраны: вход, регистрация, подписка/оплата, персональные данные, отправка заявки, PDF/SmartCalc и админские экраны. Правило по PRO-пользователям не реализовано и остаётся продуктовым решением.
+
 Задачи:
 
 - Выбрать рекламную сеть: Yandex Ads, AdMob или другую.
